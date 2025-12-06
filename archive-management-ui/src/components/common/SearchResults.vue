@@ -80,17 +80,22 @@ const enhancedColumns = computed(() => {
     // 如果是需要高亮的字段，修改formatter
     if (props.highlightFields.includes(column.prop)) {
       const originalFormatter = column.formatter
-      enhancedColumn.formatter = (row: any) => {
+      enhancedColumn.formatter = (row: any, column: any, cellValue: any) => {
         let text = ''
 
         if (originalFormatter) {
-          const result = originalFormatter(row)
+          const result = originalFormatter(row, column, cellValue)
           text = typeof result === 'string' ? result : String(result || '')
         } else {
-          text = String(row[column.prop] || '')
+          text = String(cellValue || '')
         }
 
-        return highlightText(text, props.searchKeyword)
+        // 对于 Element Plus 的 formatter，返回字符串而不是 VNode
+        const highlighted = highlightText(text, props.searchKeyword)
+        if (Array.isArray(highlighted)) {
+          return highlighted.map((part: any) => typeof part === 'string' ? part : (part.children || '')).join('')
+        }
+        return highlighted
       }
     }
 
@@ -149,10 +154,10 @@ const dataWithRelevance = computed(() => {
 
 // 搜索质量指示器
 const getSearchQuality = (score: number) => {
-  if (score >= 10) return { text: '完美匹配', type: 'success' }
-  if (score >= 7) return { text: '高度相关', type: 'primary' }
-  if (score >= 4) return { text: '部分匹配', type: 'warning' }
-  return { text: '低相关度', type: 'info' }
+  if (score >= 10) return { text: '完美匹配', type: 'success' as const }
+  if (score >= 7) return { text: '高度相关', type: 'primary' as const }
+  if (score >= 4) return { text: '部分匹配', type: 'warning' as const }
+  return { text: '低相关度', type: 'info' as const }
 }
 
 // 处理事件并转发给SearchableTable

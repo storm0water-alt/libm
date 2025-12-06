@@ -1,10 +1,10 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import type { ApiResponse } from '@/types'
 import type { SearchQuery, SearchResult, SearchResponse, SearchFilters } from '@/types'
 
 // 创建axios实例
-const request: AxiosInstance = axios.create({
+const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 10000,
   headers: {
@@ -14,7 +14,7 @@ const request: AxiosInstance = axios.create({
 
 // 请求拦截器
 request.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: any) => {
     // 添加认证token
     const token = localStorage.getItem('token')
     if (token && config.headers) {
@@ -30,7 +30,7 @@ request.interceptors.request.use(
 
     return config
   },
-  (error) => {
+  (error: any) => {
     console.error('请求错误:', error)
     return Promise.reject(error)
   }
@@ -38,7 +38,7 @@ request.interceptors.request.use(
 
 // 响应拦截器
 request.interceptors.response.use(
-  (response: AxiosResponse<ApiResponse>) => {
+  (response: any) => {
     const { data } = response
 
     // 检查业务状态码
@@ -58,7 +58,7 @@ request.interceptors.response.use(
 
     return data
   },
-  (error) => {
+  (error: any) => {
     console.error('响应错误:', error)
 
     let message = '网络错误'
@@ -129,7 +129,7 @@ export const http = {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      onUploadProgress: (progressEvent) => {
+      onUploadProgress: (progressEvent: any) => {
         if (onProgress && progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
           onProgress(progress)
@@ -192,7 +192,7 @@ export const searchApi = {
         })
       }
 
-      const response = await http.get<SearchResponse>(`/search?${params.toString()}`)
+      const response = await http.get(`/search?${params.toString()}`)
       return response.data || response
     } catch (error) {
       console.error('搜索请求失败:', error)
@@ -208,8 +208,8 @@ export const searchApi = {
     try {
       if (!keyword.trim()) return []
 
-      const response = await http.get<string[]>(`/search/suggestions?q=${encodeURIComponent(keyword)}&limit=${limit}`)
-      return response.data || []
+      const response = await http.get(`/search/suggestions?q=${encodeURIComponent(keyword)}&limit=${limit}`)
+      return Array.isArray(response.data) ? response.data : Array.isArray(response) ? response : []
     } catch (error) {
       console.error('获取搜索建议失败:', error)
       // 返回模拟建议
@@ -222,8 +222,8 @@ export const searchApi = {
    */
   async getPopularSearches(limit: number = 10): Promise<string[]> {
     try {
-      const response = await http.get<string[]>(`/search/popular?limit=${limit}`)
-      return response.data || []
+      const response = await http.get(`/search/popular?limit=${limit}`)
+      return Array.isArray(response.data) ? response.data : Array.isArray(response) ? response : []
     } catch (error) {
       console.error('获取热门搜索失败:', error)
       // 返回模拟热门搜索
@@ -236,8 +236,8 @@ export const searchApi = {
    */
   async getSearchHistory(limit: number = 20): Promise<Array<{ keyword: string; timestamp: number }>> {
     try {
-      const response = await http.get<Array<{ keyword: string; timestamp: number }>>(`/search/history?limit=${limit}`)
-      return response.data || []
+      const response = await http.get(`/search/history?limit=${limit}`)
+      return Array.isArray(response.data) ? response.data : Array.isArray(response) ? response : []
     } catch (error) {
       console.error('获取搜索历史失败:', error)
       // 从本地存储获取
@@ -344,12 +344,15 @@ function generateMockSearchResponse(query: SearchQuery): SearchResponse {
   return {
     results,
     total,
-    page,
-    size,
-    totalPages: Math.ceil(total / size),
-    hasMore: end < total,
-    searchTime: Math.random() * 500 + 100, // 100-600ms
-    query: query.keyword || ''
+    pagination: {
+      currentPage: page,
+      pageSize: size,
+      totalItems: total,
+      totalPages: Math.ceil(total / size),
+      hasNext: page * size < total,
+      hasPrevious: page > 1
+    },
+    searchTime: Math.random() * 500 + 100 // 100-600ms
   }
 }
 

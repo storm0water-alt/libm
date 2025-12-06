@@ -88,7 +88,7 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number,
   immediate?: boolean
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null
+  let timeout: number | null = null
 
   return function(this: any, ...args: Parameters<T>) {
     const context = this
@@ -111,7 +111,7 @@ export function throttle<T extends (...args: any[]) => any>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null
+  let timeout: number | null = null
   let previous = 0
 
   return function(this: any, ...args: Parameters<T>) {
@@ -329,15 +329,15 @@ export const mockData = {
         // 新的档案核心字段
         archiveId: `${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}-${year}-${organizationCodes[orgIndex]}-${String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0')}-${String(i).padStart(5, '0')}`,
         fondsNumber: String(Math.floor(Math.random() * 100000)).padStart(5, '0'),
-        retentionPeriod: retentionPeriods[retentionIndex],
-        retentionPeriodCode: retentionPeriodCodes[retentionIndex],
+        retentionPeriod: retentionPeriods[retentionIndex] || '',
+        retentionPeriodCode: retentionPeriodCodes[retentionIndex] || '',
         year: String(year),
-        organizationIssueCode: organizationCodes[orgIndex],
+        organizationIssueCode: organizationCodes[orgIndex] || '',
         boxNumber: String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0'),
         itemNumber: String(Math.floor(Math.random() * 99999) + 1).padStart(5, '0'),
-        title: `${organizationNames[orgIndex]}相关档案文件_${i}`,
-        organizationIssue: organizationNames[orgIndex],
-        responsiblePerson: responsiblePersons[Math.floor(Math.random() * responsiblePersons.length)],
+        title: `${organizationNames[orgIndex] || '未知机构'}相关档案文件_${i}`,
+        organizationIssue: organizationNames[orgIndex] || '',
+        responsiblePerson: responsiblePersons[Math.floor(Math.random() * responsiblePersons.length)] || '',
         documentNumber: `${['津自博字', '津财字', '津基字'][Math.floor(Math.random() * 3)]}[${year}]${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}号`,
         date: `${year}${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
         pageNumber: String(Math.floor(Math.random() * 500) + 1),
@@ -366,15 +366,15 @@ export const mockData = {
     const operators = ['张三', '李四', '王五', '赵六', '陈七', '刘八']
 
     for (let i = 1; i <= count; i++) {
-      const operation = operations[Math.floor(Math.random() * operations.length)]
+      const operation = operations[Math.floor(Math.random() * operations.length)] || 'create'
       logs.push({
         id: `log_${i}`,
         operator: `user${Math.floor(Math.random() * 10) + 1}`,
-        operatorName: operators[Math.floor(Math.random() * operators.length)],
+        operatorName: operators[Math.floor(Math.random() * operators.length)] || '',
         operationType: operation,
         targetId: `ARCH${String(Math.floor(Math.random() * 1000) + 1).padStart(6, '0')}`,
         targetName: `档案文件_${Math.floor(Math.random() * 100) + 1}`,
-        description: `执行了${getOperationTypeText(operation)}操作`,
+        description: `执行了${getOperationTypeText(operation) || '未知'}操作`,
         ip: `192.168.1.${Math.floor(Math.random() * 255) + 1}`,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()

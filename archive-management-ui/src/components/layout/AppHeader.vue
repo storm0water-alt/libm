@@ -19,6 +19,15 @@ const systemTitle = computed(() => '正成档案管理系统')
 // 系统Logo
 const systemLogo = computed(() => 'bi-archive-fill')
 
+// 切换全屏
+const toggleFullscreen = () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen()
+  } else {
+    document.documentElement.requestFullscreen()
+  }
+}
+
 // 退出登录
 const handleLogout = async () => {
   try {
@@ -122,13 +131,7 @@ const handleCommand = (command: string) => {
       <el-button
         class="header-action"
         text
-        @click="() => {
-          if (document.fullscreenElement) {
-            document.exitFullscreen()
-          } else {
-            document.documentElement.requestFullscreen()
-          }
-        }"
+        @click="toggleFullscreen"
         title="全屏切换"
       >
         <el-icon :size="18">

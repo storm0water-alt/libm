@@ -2,7 +2,8 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import type { LoginForm } from '@/types'
 
 const router = useRouter()
@@ -64,7 +65,7 @@ const generateCaptcha = () => {
       // 绘制文字
       ctx.font = `${20 + Math.random() * 10}px Arial`
       ctx.fillStyle = `#${Math.floor(Math.random() * 16777215).toString(16)}`
-      ctx.fillText(char, 15 + i * 25, 25 + Math.random() * 10)
+      ctx.fillText(char || '', 15 + i * 25, 25 + Math.random() * 10)
     }
 
     // 添加干扰线
@@ -116,8 +117,8 @@ const handleLogin = async () => {
 
     if (success) {
       // 跳转到重定向地址或搜索页
-      const redirect = route.query.redirect as string
-      router.push(redirect || '/search')
+      const redirect = (route.query.redirect as string) || '/search'
+      router.push(redirect)
     }
   } catch (error) {
     console.error('登录失败:', error)

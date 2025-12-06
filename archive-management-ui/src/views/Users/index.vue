@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import SearchableTable from '@/components/common/SearchableTable.vue'
 import type { User, TableColumn, SearchCondition } from '@/types'
 
@@ -12,14 +13,14 @@ const users = ref<User[]>([])
 const selectedUsers = ref<User[]>([])
 
 // 搜索表单
-const searchForm = reactive({
+let searchForm = reactive({
   username: '',
   role: '',
   status: ''
 })
 
 // 分页数据
-const pagination = reactive({
+let pagination = reactive({
   page: 1,
   size: 20,
   total: 0
@@ -28,6 +29,19 @@ const pagination = reactive({
 // 编辑弹窗控制
 const editDialogVisible = ref(false)
 const currentEditUser = ref<User | null>(null)
+
+// 编辑表单数据（处理 null 值）
+const editFormData = computed(() => {
+  if (!currentEditUser.value) {
+    return {
+      username: '',
+      role: 'user',
+      password: '',
+      status: 'active'
+    }
+  }
+  return currentEditUser.value
+})
 
 // 搜索条件配置
 const searchConditions: SearchCondition[] = [
@@ -166,6 +180,16 @@ const loadUsers = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 搜索表单更新处理
+const handleSearchFormUpdate = (newForm: any) => {
+  Object.assign(searchForm, newForm)
+}
+
+// 分页更新处理
+const handlePaginationUpdate = (newPagination: any) => {
+  Object.assign(pagination, newPagination)
 }
 
 // 搜索处理
@@ -353,8 +377,8 @@ onMounted(() => {
       :pagination="pagination"
       :show-selection="true"
       :batch-operations="[]"
-      @update:search-form="searchForm = $event"
-      @update:pagination="pagination = $event"
+      @update:search-form="handleSearchFormUpdate"
+      @update:pagination="handlePaginationUpdate"
       @search="handleSearch"
       @reset="handleReset"
       @selection-change="handleSelectionChange"
@@ -440,14 +464,14 @@ onMounted(() => {
       >
         <el-form-item label="用户名" prop="username">
           <el-input
-            v-model="currentEditUser.username"
+            v-model="editFormData.username"
             placeholder="请输入用户名"
             :disabled="!!currentEditUser"
           />
         </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input
-            v-model="currentEditUser.password"
+            v-model="editFormData.password"
             type="password"
             placeholder="请输入密码"
             show-password
@@ -457,13 +481,13 @@ onMounted(() => {
           </div>
         </el-form-item>
         <el-form-item label="角色" prop="role">
-          <el-select v-model="currentEditUser.role" placeholder="请选择角色">
+          <el-select v-model="editFormData.role" placeholder="请选择角色">
             <el-option label="管理员" value="admin" />
             <el-option label="普通用户" value="user" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-radio-group v-model="currentEditUser.status">
+          <el-radio-group v-model="editFormData.status">
             <el-radio label="active">正常</el-radio>
             <el-radio label="disabled">禁用</el-radio>
           </el-radio-group>

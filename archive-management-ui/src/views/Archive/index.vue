@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox, FormInstance } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance } from 'element-plus'
 import SearchableTable from '@/components/common/SearchableTable.vue'
 import PDFPreview from '@/components/business/PDFPreview.vue'
 import type { Archive, SearchForm, TableColumn, BatchOperation } from '@/types'
@@ -19,12 +20,12 @@ const totalArchives = ref(0)
 const selectedArchives = ref<Archive[]>([])
 
 // 搜索表单
-const searchForm = reactive<SearchForm>({
+let searchForm = reactive<SearchForm>({
   archiveId: '',
   fileName: '',
-  dateRange: null,
-  minSize: null,
-  maxSize: null,
+  dateRange: undefined,
+  minSize: undefined,
+  maxSize: undefined,
   storageLocation: '',
   fileType: '',
   status: '',
@@ -41,6 +42,29 @@ const pagination = reactive({
 // 编辑弹窗控制
 const editDialogVisible = ref(false)
 const currentEditArchive = ref<Archive | null>(null)
+
+// 编辑表单数据（处理 null 值）
+const editFormData = computed(() => {
+  if (!currentEditArchive.value) {
+    // 返回默认值
+    return {
+      archiveId: '',
+      fondsNumber: '',
+      title: '',
+      responsiblePerson: '',
+      documentNumber: '',
+      year: '',
+      retentionPeriod: '',
+      organizationIssueCode: '',
+      boxNumber: '',
+      itemNumber: '',
+      date: '',
+      pageNumber: '',
+      remarks: ''
+    }
+  }
+  return currentEditArchive.value
+})
 
 // PDF预览控制
 const pdfPreviewVisible = ref(false)
@@ -328,10 +352,10 @@ const loadArchives = async () => {
       }
 
       // 兼容旧字段搜索
-      if (searchForm.fileName && !archive.fileName.toLowerCase().includes(searchForm.fileName.toLowerCase())) {
+      if (searchForm.fileName && !archive.fileName?.toLowerCase().includes(searchForm.fileName.toLowerCase())) {
         return false
       }
-      if (searchForm.storageLocation && !archive.storageLocation.includes(searchForm.storageLocation)) {
+      if (searchForm.storageLocation && !archive.storageLocation?.includes(searchForm.storageLocation)) {
         return false
       }
       if (searchForm.fileType && archive.fileType !== searchForm.fileType) {
@@ -352,10 +376,10 @@ const loadArchives = async () => {
       }
 
       // 文件大小范围过滤
-      if (searchForm.minSize !== null && archive.fileSize && archive.fileSize < searchForm.minSize) {
+      if (searchForm.minSize !== undefined && archive.fileSize && archive.fileSize < searchForm.minSize) {
         return false
       }
-      if (searchForm.maxSize !== null && archive.fileSize && archive.fileSize > searchForm.maxSize) {
+      if (searchForm.maxSize !== undefined && archive.fileSize && archive.fileSize > searchForm.maxSize) {
         return false
       }
 
@@ -389,6 +413,16 @@ const loadArchives = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 搜索表单更新处理
+const handleSearchFormUpdate = (newForm: SearchForm) => {
+  Object.assign(searchForm, newForm)
+}
+
+// 分页更新处理
+const handlePaginationUpdate = (newPagination: any) => {
+  Object.assign(pagination, newPagination)
 }
 
 // 搜索处理
@@ -651,8 +685,8 @@ onMounted(() => {
       :search-form="searchForm"
       :pagination="pagination"
       :batch-operations="batchOperations"
-      @update:search-form="searchForm = $event"
-      @update:pagination="pagination = $event"
+      @update:search-form="handleSearchFormUpdate"
+      @update:pagination="handlePaginationUpdate"
       @search="handleSearch"
       @reset="handleReset"
       @selection-change="handleSelectionChange"
@@ -739,36 +773,36 @@ onMounted(() => {
       >
         <el-form-item label="档号" prop="archiveId">
           <el-input
-            v-model="currentEditArchive.archiveId"
+            v-model="editFormData.archiveId"
             placeholder="请输入档号"
           />
         </el-form-item>
         <el-form-item label="全宗号" prop="fondsNumber">
           <el-input
-            v-model="currentEditArchive.fondsNumber"
+            v-model="editFormData.fondsNumber"
             placeholder="请输入全宗号"
           />
         </el-form-item>
         <el-form-item label="题名" prop="title">
           <el-input
-            v-model="currentEditArchive.title"
+            v-model="editFormData.title"
             placeholder="请输入题名"
           />
         </el-form-item>
         <el-form-item label="责任者" prop="responsiblePerson">
           <el-input
-            v-model="currentEditArchive.responsiblePerson"
+            v-model="editFormData.responsiblePerson"
             placeholder="请输入责任者"
           />
         </el-form-item>
         <el-form-item label="文号">
           <el-input
-            v-model="currentEditArchive.documentNumber"
+            v-model="editFormData.documentNumber"
             placeholder="请输入文号"
           />
         </el-form-item>
         <el-form-item label="年度" prop="year">
-          <el-select v-model="currentEditArchive.year" placeholder="请选择年度">
+          <el-select v-model="editFormData.year" placeholder="请选择年度">
             <el-option
               v-for="year in Array.from({length: 15}, (_, i) => 2010 + i)"
               :key="year"
@@ -778,7 +812,7 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="保管期限" prop="retentionPeriod">
-          <el-select v-model="currentEditArchive.retentionPeriod" placeholder="请选择保管期限">
+          <el-select v-model="editFormData.retentionPeriod" placeholder="请选择保管期限">
             <el-option label="永久" value="永久" />
             <el-option label="30年" value="30年" />
             <el-option label="10年" value="10年" />
@@ -787,7 +821,7 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="机构问题代码" prop="organizationIssueCode">
-          <el-select v-model="currentEditArchive.organizationIssueCode" placeholder="请选择机构问题代码">
+          <el-select v-model="editFormData.organizationIssueCode" placeholder="请选择机构问题代码">
             <el-option label="业务管理" value="bgs" />
             <el-option label="财务部" value="cwb" />
             <el-option label="基础建设" value="jcs" />
@@ -797,19 +831,19 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="盒号" prop="boxNumber">
           <el-input
-            v-model="currentEditArchive.boxNumber"
+            v-model="editFormData.boxNumber"
             placeholder="请输入盒号"
           />
         </el-form-item>
         <el-form-item label="件号" prop="itemNumber">
           <el-input
-            v-model="currentEditArchive.itemNumber"
+            v-model="editFormData.itemNumber"
             placeholder="请输入件号"
           />
         </el-form-item>
         <el-form-item label="日期">
           <el-date-picker
-            v-model="currentEditArchive.date"
+            v-model="editFormData.date"
             type="date"
             placeholder="请选择日期"
             format="YYYY-MM-DD"
@@ -818,13 +852,13 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="页号">
           <el-input
-            v-model="currentEditArchive.pageNumber"
+            v-model="editFormData.pageNumber"
             placeholder="请输入页号"
           />
         </el-form-item>
         <el-form-item label="备注">
           <el-input
-            v-model="currentEditArchive.remarks"
+            v-model="editFormData.remarks"
             placeholder="请输入备注"
           />
         </el-form-item>

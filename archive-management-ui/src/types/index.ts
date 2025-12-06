@@ -4,6 +4,7 @@ export interface User {
   username: string;
   role: 'admin' | 'user';
   avatar?: string;
+  password?: string; // 编辑时的密码字段
   createdAt: string;
   status: 'active' | 'disabled';
 }
@@ -35,6 +36,7 @@ export interface Archive {
   pageNumber: string; // 页号
   remarks: string; // 备注
   // 保持原有系统字段
+  fileName?: string; // 文件名
   fileSize?: number; // 文件大小（字节）
   storageLocation?: string; // 存储位置
   fileType?: string; // 文件类型
@@ -140,7 +142,7 @@ export interface StatData {
   title: string;
   value: number | string;
   icon: string;
-  color: 'primary' | 'success' | 'warning' | 'danger';
+  color: 'primary' | 'success' | 'warning' | 'danger' | 'info';
   trend?: number;
 }
 
@@ -170,7 +172,7 @@ export interface TableColumn {
 export interface SearchCondition {
   field: string;
   label: string;
-  type: 'input' | 'select' | 'daterange' | 'number';
+  type: 'input' | 'select' | 'daterange' | 'number' | string;
   placeholder?: string;
   options?: Array<{ label: string; value: any }>;
 }

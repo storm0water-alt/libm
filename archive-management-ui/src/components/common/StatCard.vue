@@ -23,7 +23,8 @@ const cardClass = computed(() => {
     primary: 'stat-card--primary',
     success: 'stat-card--success',
     warning: 'stat-card--warning',
-    danger: 'stat-card--danger'
+    danger: 'stat-card--danger',
+    info: 'stat-card--info'
   }
   return `stat-card ${colorClasses[props.data.color] || 'stat-card--primary'}`
 })

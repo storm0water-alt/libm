@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "axios": "^1.13.2",
     "element-plus": "^2.11.9",
     "pdfjs-dist": "^5.4.449",
     "pinia": "^3.0.4",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.3",
+    "@types/axios": "^0.9.36",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/eslint-config-prettier": "^10.2.0",

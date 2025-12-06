@@ -284,11 +284,15 @@ export class SearchHistoryManager {
 
     if (existingIndex !== -1) {
       // 更新现有记录
-      history[existingIndex].timestamp = timestamp
-      history[existingIndex].resultCount = resultCount
+      if (history[existingIndex]) {
+        history[existingIndex].timestamp = timestamp
+        history[existingIndex].resultCount = resultCount
+      }
       // 移到最前面
       const existingItem = history.splice(existingIndex, 1)[0]
-      history.unshift(existingItem)
+      if (existingItem) {
+        history.unshift(existingItem)
+      }
     } else {
       // 添加新记录
       const newItem: SearchHistoryItem = {

@@ -92,7 +92,7 @@ const renderPage = async (pageNum: number) => {
 
     // 适应容器大小
     fitToContainer()
-  } catch (error) {
+  } catch (error: any) {
     if (error.name !== 'RenderingCancelledException') {
       console.error('渲染页面失败:', error)
     }
@@ -120,14 +120,16 @@ const fitToContainer = () => {
 
 // 缩放控制
 const zoomIn = () => {
-  const nextIndex = Math.min(currentZoomIndex.value + 1, zoomLevels.length - 1)
-  scale.value = zoomLevels[nextIndex]
+  const currentIndex = Math.max(currentZoomIndex.value, 0)
+  const nextIndex = Math.min(currentIndex + 1, zoomLevels.length - 1)
+  scale.value = zoomLevels[nextIndex] || 1.0
   renderPage(currentPage.value)
 }
 
 const zoomOut = () => {
-  const prevIndex = Math.max(currentZoomIndex.value - 1, 0)
-  scale.value = zoomLevels[prevIndex]
+  const currentIndex = Math.max(currentZoomIndex.value, 0)
+  const prevIndex = Math.max(currentIndex - 1, 0)
+  scale.value = zoomLevels[prevIndex] || 1.0
   renderPage(currentPage.value)
 }
 
