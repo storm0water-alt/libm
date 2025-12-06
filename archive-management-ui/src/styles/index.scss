@@ -1,0 +1,318 @@
+// 全局样式变量
+:root {
+  // 主色调 - 深蓝色系
+  --primary-color: #1e3a8a;
+  --primary-light: #3b82f6;
+  --primary-dark: #1e2a5a;
+
+  // 辅助色
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --danger-color: #ef4444;
+  --info-color: #06b6d4;
+
+  // 中性色
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-disabled: #9ca3af;
+  --border-color: #e5e7eb;
+  --background-color: #f9fafb;
+  --card-background: #ffffff;
+
+  // 间距系统 (8px基准)
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  // 圆角
+  --border-radius-sm: 4px;
+  --border-radius-base: 6px;
+  --border-radius-lg: 8px;
+  --border-radius-xl: 12px;
+
+  // 阴影
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  // 字体大小
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+}
+
+// 重置样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background-color: var(--background-color);
+  line-height: 1.6;
+}
+
+#app {
+  height: 100%;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-disabled);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+// 通用工具类
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-primary {
+  color: var(--primary-color);
+}
+
+.text-success {
+  color: var(--success-color);
+}
+
+.text-warning {
+  color: var(--warning-color);
+}
+
+.text-danger {
+  color: var(--danger-color);
+}
+
+.bg-white {
+  background-color: var(--card-background);
+}
+
+.bg-primary {
+  background-color: var(--primary-color);
+}
+
+.shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow {
+  box-shadow: var(--shadow-base);
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.rounded-sm {
+  border-radius: var(--border-radius-sm);
+}
+
+.rounded {
+  border-radius: var(--border-radius-base);
+}
+
+.rounded-lg {
+  border-radius: var(--border-radius-lg);
+}
+
+.rounded-xl {
+  border-radius: var(--border-radius-xl);
+}
+
+// 间距工具类
+@for $i from 1 through 16 {
+  .m-#{$i} {
+    margin: calc(var(--spacing-1) * #{$i});
+  }
+  .mt-#{$i} {
+    margin-top: calc(var(--spacing-1) * #{$i});
+  }
+  .mb-#{$i} {
+    margin-bottom: calc(var(--spacing-1) * #{$i});
+  }
+  .ml-#{$i} {
+    margin-left: calc(var(--spacing-1) * #{$i});
+  }
+  .mr-#{$i} {
+    margin-right: calc(var(--spacing-1) * #{$i});
+  }
+  .mx-#{$i} {
+    margin-left: calc(var(--spacing-1) * #{$i});
+    margin-right: calc(var(--spacing-1) * #{$i});
+  }
+  .my-#{$i} {
+    margin-top: calc(var(--spacing-1) * #{$i});
+    margin-bottom: calc(var(--spacing-1) * #{$i});
+  }
+
+  .p-#{$i} {
+    padding: calc(var(--spacing-1) * #{$i});
+  }
+  .pt-#{$i} {
+    padding-top: calc(var(--spacing-1) * #{$i});
+  }
+  .pb-#{$i} {
+    padding-bottom: calc(var(--spacing-1) * #{$i});
+  }
+  .pl-#{$i} {
+    padding-left: calc(var(--spacing-1) * #{$i});
+  }
+  .pr-#{$i} {
+    padding-right: calc(var(--spacing-1) * #{$i});
+  }
+  .px-#{$i} {
+    padding-left: calc(var(--spacing-1) * #{$i});
+    padding-right: calc(var(--spacing-1) * #{$i});
+  }
+  .py-#{$i} {
+    padding-top: calc(var(--spacing-1) * #{$i});
+    padding-bottom: calc(var(--spacing-1) * #{$i});
+  }
+}
+
+// 过渡动画
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-enter-from {
+  transform: translateX(-100%);
+}
+
+// 悬停效果
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+// 加载动画
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+// Element Plus 样式覆盖
+.el-button--primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+
+  &:hover {
+    background-color: var(--primary-light);
+    border-color: var(--primary-light);
+  }
+}
+
+.el-menu--dark {
+  background-color: var(--primary-dark) !important;
+}
+
+.el-menu--dark .el-menu-item,
+.el-menu--dark .el-submenu__title {
+  color: rgba(255, 255, 255, 0.85);
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+}
+
+.el-menu--dark .el-menu-item.is-active {
+  background-color: var(--primary-color) !important;
+  color: #fff;
+}
+
+.el-card {
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-base);
+}
+
+// 响应式断点
+@media (max-width: 768px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .hidden-desktop {
+    display: none !important;
+  }
+}

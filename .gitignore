@@ -1,0 +1,20 @@
+# Claude
+.claude/
+
+# MCP
+.mcp.json
+
+# Spec workflow
+.spec-workflow/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
