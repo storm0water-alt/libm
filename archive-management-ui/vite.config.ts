@@ -19,6 +19,9 @@ export default defineConfig({
     include: ['pdfjs-dist', 'element-plus'],
     exclude: ['@element-plus/icons-vue']
   },
+  worker: {
+    format: 'es'
+  },
   server: {
     host: true,
     port: 5173,

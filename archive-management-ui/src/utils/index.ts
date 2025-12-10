@@ -319,7 +319,21 @@ export const mockData = {
     const responsiblePersons = ['张三', '李四', '王五', '赵六', '陈七', '刘八', '周九', '吴十']
 
     for (let i = 1; i <= count; i++) {
-      const fileType = fileTypes[Math.floor(Math.random() * fileTypes.length)]
+      // 调整文件类型分布，让PDF文件占比约60%
+      const random = Math.random()
+      let fileType: string
+      if (random < 0.6) {
+        fileType = 'pdf'
+      } else if (random < 0.8) {
+        fileType = 'docx'
+      } else if (random < 0.9) {
+        fileType = 'xlsx'
+      } else if (random < 0.95) {
+        fileType = 'pptx'
+      } else {
+        fileType = fileTypes[Math.floor(Math.random() * 4)] || 'pdf' // 包括其他类型
+      }
+
       const year = 2010 + Math.floor(Math.random() * 14) // 2010-2023年
       const retentionIndex = Math.floor(Math.random() * retentionPeriods.length)
       const orgIndex = Math.floor(Math.random() * organizationCodes.length)
@@ -327,7 +341,7 @@ export const mockData = {
       archives.push({
         id: `archive_${i}`,
         // 新的档案核心字段
-        archiveId: `${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}-${year}-${organizationCodes[orgIndex]}-${String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0')}-${String(i).padStart(5, '0')}`,
+        archiveId: `ARCH${year}${String(orgIndex + 1)}${String(i).padStart(5, '0')}`,
         fondsNumber: String(Math.floor(Math.random() * 100000)).padStart(5, '0'),
         retentionPeriod: retentionPeriods[retentionIndex] || '',
         retentionPeriodCode: retentionPeriodCodes[retentionIndex] || '',

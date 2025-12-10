@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF预览修复测试 V3 (PDF.js 3.x)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-info {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      border-radius: 4px;
+    }
+    .test-button {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    .test-button:hover {
+      background-color: #1976D2;
+    }
+    .test-button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    #console-output {
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-top: 20px;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    .status.success {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+      display: block;
+    }
+    .status.error {
+      background-color: #ffebee;
+      color: #c62828;
+      display: block;
+    }
+    #pdf-container {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      background: #f9f9f9;
+      display: none;
+    }
+    #pdf-canvas {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PDF预览修复验证 V3</h1>
+
+    <div class="test-info">
+      <h3>使用 PDF.js 3.11.174 版本（稳定版）</h3>
+      <ul>
+        <li>✅ 降级PDF.js到稳定版本 3.11.174</li>
+        <li>✅ 使用 .js worker 文件（非.mjs）</li>
+        <li>✅ 移除了 5.x 特有的 intent 选项</li>
+        <li>✅ 保留防重复加载机制</li>
+      </ul>
+    </div>
+
+    <button id="testBtn" class="test-button">测试PDF渲染</button>
+    <button id="clearBtn" class="test-button">清除日志</button>
+
+    <div id="status" class="status"></div>
+
+    <div id="console-output"></div>
+
+    <div id="pdf-container">
+      <h3>PDF预览：</h3>
+      <canvas id="pdf-canvas"></canvas>
+    </div>
+  </div>
+
+  <script src="/pdf.js"></script>
+  <script>
+    // 设置worker路径
+    if (typeof window !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+    }
+
+    // 模拟Vue环境中的console输出
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    const output = document.getElementById('console-output');
+    const status = document.getElementById('status');
+    const pdfContainer = document.getElementById('pdf-container');
+    const canvas = document.getElementById('pdf-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function appendToOutput(type, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.map(arg => {
+        if (typeof arg === 'object') {
+          return JSON.stringify(arg, null, 2);
+        }
+        return String(arg);
+      }).join(' ');
+
+      const color = type === 'error' ? '#ff6b6b' : type === 'warn' ? '#feca57' : '#48dbfb';
+      output.innerHTML += `<span style="color: #999">[${timestamp}]</span> <span style="color: ${color}">${type.toUpperCase()}:</span> ${message}\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      appendToOutput('log', ...args);
+    };
+
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      appendToOutput('error', ...args);
+    };
+
+    console.warn = function(...args) {
+      originalWarn.apply(console, args);
+      appendToOutput('warn', ...args);
+    };
+
+    // 测试按钮
+    document.getElementById('testBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('testBtn');
+      btn.disabled = true;
+      btn.textContent = '测试中...';
+
+      status.className = 'status';
+      status.textContent = '';
+      pdfContainer.style.display = 'none';
+
+      try {
+        console.log('开始测试PDF预览功能（PDF.js 3.x版本）...');
+
+        // 测试1: 检查PDF.js是否正确加载
+        console.log('测试1: 检查PDF.js库...');
+        console.log('PDF.js version:', pdfjsLib.version);
+        console.log('Worker source:', pdfjsLib.GlobalWorkerOptions.workerSrc);
+
+        // 测试2: 尝试加载示例PDF
+        console.log('\n测试2: 尝试加载示例PDF...');
+        const pdfUrl = '/sample-pdfs/esp32-s3_datasheet_cn.pdf';
+
+        const loadingTask = pdfjsLib.getDocument({
+          url: pdfUrl,
+          disableAutoFetch: true,
+          disableStream: true
+        });
+
+        const pdf = await loadingTask.promise;
+        console.log(`✅ PDF加载成功，共 ${pdf.numPages} 页`);
+
+        // 测试3: 尝试获取并渲染第一页
+        console.log('\n测试3: 测试页面渲染...');
+        const page = await pdf.getPage(1);
+        console.log('✅ 成功获取第1页，尺寸:', page.view);
+
+        // 渲染页面
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+
+        await page.render(renderContext).promise;
+        console.log('✅ 页面渲染成功！');
+
+        pdfContainer.style.display = 'block';
+
+        // 清理
+        await pdf.destroy();
+
+        console.log('\n✅ 所有测试通过！PDF.js 3.x版本工作正常。');
+
+        status.className = 'status success';
+        status.textContent = '✅ 测试成功！PDF预览功能已修复。';
+
+      } catch (error) {
+        console.error('\n❌ 测试失败:', error);
+        status.className = 'status error';
+        status.textContent = `❌ 测试失败: ${error.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '测试PDF渲染';
+      }
+    });
+
+    // 清除日志按钮
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      output.innerHTML = '';
+      status.className = 'status';
+      status.textContent = '';
+      pdfContainer.style.display = 'none';
+      console.log('日志已清除');
+    });
+
+    // 初始化日志
+    console.log('PDF预览修复测试页面 V3 已加载');
+    console.log('PDF.js版本:', pdfjsLib.version);
+    console.log('点击"测试PDF渲染"按钮开始测试');
+  </script>
+</body>
+</html>

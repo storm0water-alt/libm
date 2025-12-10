@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF 预览测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .test-button {
+      background: #409eff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .test-button:hover {
+      background: #66b1ff;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background: #f0f9ff;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+    .error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .info {
+      background: #f0f9ff;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+  </style>
+</head>
+<body>
+  <h1>PDF 预览功能测试</h1>
+
+  <button class="test-button" onclick="testPDFPreview()">测试 PDF 预览</button>
+
+  <h2>PDF.js 状态检查</h2>
+  <div id="pdfjs-status" class="status info" style="display: none;"></div>
+
+  <h2>文件访问测试</h2>
+  <div id="file-status" class="status info" style="display: none;"></div>
+
+  <h2>完整测试</h2>
+  <div id="complete-status" class="status" style="display: none;"></div>
+
+  <script>
+    // 检查 PDF.js 状态
+    function checkPDFJSStatus() {
+      const statusDiv = document.getElementById('pdfjs-status');
+      statusDiv.style.display = 'block';
+
+      if (typeof window.pdfjsLib !== 'undefined') {
+        statusDiv.innerHTML = `
+          <h3>✅ PDF.js 已加载</h3>
+          <p>版本: ${window.pdfjsLib.version}</p>
+          <p>Worker 源: ${window.pdfjsLib.GlobalWorkerOptions.workerSrc}</p>
+        `;
+        statusDiv.classList.add('success');
+      } else {
+        statusDiv.innerHTML = `
+          <h3>❌ PDF.js 未加载</h3>
+          <p>请检查控制台是否有错误信息</p>
+        `;
+        statusDiv.classList.add('error');
+      }
+    }
+
+    // 检查文件访问
+    async function checkFileAccess() {
+      const statusDiv = document.getElementById('file-status');
+      statusDiv.style.display = 'block';
+
+      try {
+        // 检查 PDF.js worker
+        const workerUrl = window.pdfjsLib?.GlobalWorkerOptions?.workerSrc;
+        if (workerUrl) {
+          const workerResponse = await fetch(workerUrl, { method: 'HEAD' });
+          if (!workerResponse.ok) {
+            throw new Error(`Worker 文件不可访问: ${workerResponse.status}`);
+          }
+          statusDiv.innerHTML += '<p>✅ PDF.js worker 文件可访问</p>';
+        }
+
+        // 检查示例 PDF 文件
+        const pdfUrls = [
+          '/sample-pdfs/esp32-s3_datasheet_cn.pdf',
+          '/sample-pdfs/esp32-s3-wroom-1_wroom-1u_datasheet_cn.pdf'
+        ];
+
+        for (const pdfUrl of pdfUrls) {
+          try {
+            const response = await fetch(pdfUrl, { method: 'HEAD' });
+            if (response.ok) {
+              statusDiv.innerHTML += `<p>✅ PDF 文件可访问: ${pdfUrl.split('/').pop()}</p>`;
+            } else {
+              statusDiv.innerHTML += `<p>❌ PDF 文件不可访问: ${pdfUrl} (${response.status})</p>`;
+            }
+          } catch (error) {
+            statusDiv.innerHTML += `<p>❌ PDF 文件访问失败: ${pdfUrl} (${error.message})</p>`;
+          }
+        }
+
+        statusDiv.classList.add('success');
+      } catch (error) {
+        statusDiv.innerHTML = `<p>❌ 文件访问测试失败: ${error.message}</p>`;
+        statusDiv.classList.add('error');
+      }
+    }
+
+    // 测试 PDF 预览
+    async function testPDFPreview() {
+      const statusDiv = document.getElementById('complete-status');
+      statusDiv.style.display = 'block';
+
+      try {
+        // 先检查基本状态
+        if (typeof window.pdfjsLib === 'undefined') {
+          throw new Error('PDF.js 未加载');
+        }
+
+        // 测试 PDF 文件
+        const pdfUrl = '/sample-pdfs/esp32-s3_datasheet_cn.pdf';
+        const response = await fetch(pdfUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          throw new Error(`PDF 文件不可访问: ${response.status}`);
+        }
+
+        // 尝试加载 PDF
+        statusDiv.innerHTML = '正在测试 PDF 加载...';
+
+        const loadingTask = window.pdfjsLib.getDocument({
+          url: pdfUrl,
+          disableAutoFetch: true,
+          disableStream: true
+        });
+
+        const pdf = await loadingTask.promise;
+        statusDiv.innerHTML = `
+          <h3>✅ PDF 预览功能正常</h3>
+          <p>PDF.js 版本: ${window.pdfjsLib.version}</p>
+          <p>Worker 源: ${window.pdfjsLib.GlobalWorkerOptions.workerSrc}</p>
+          <p>PDF 文件: ${pdfUrl}</p>
+          <p>总页数: ${pdf.numPages}</p>
+          <p><a href="http://localhost:5174/" target="_blank">前往主应用测试</a></p>
+        `;
+        statusDiv.classList.add('success');
+
+        // 关闭 PDF 文档
+        pdf.destroy();
+
+      } catch (error) {
+        console.error('测试失败:', error);
+        statusDiv.innerHTML = `
+          <h3>❌ 测试失败</h3>
+          <p>错误: ${error.message}</p>
+          <p>请检查控制台获取详细信息</p>
+        `;
+        statusDiv.classList.add('error');
+      }
+    }
+
+    // 页面加载时自动测试
+    window.addEventListener('load', () => {
+      checkPDFJSStatus();
+      checkFileAccess();
+    });
+  </script>
+</body>
+</html>

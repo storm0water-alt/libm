@@ -4,9 +4,10 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import SearchableTable from '@/components/common/SearchableTable.vue'
-import PDFPreview from '@/components/business/PDFPreview.vue'
+import PDFPreview from '@/components/business/PDFPreviewIframe.vue'
 import type { Archive, SearchForm, TableColumn, BatchOperation } from '@/types'
 import { mockData, formatFileSize, formatDate, getStatusText, getStatusTagType, exportToCSV } from '@/utils'
+import { getPDFUrl, validatePDFExists, getPDFDownloadUrl } from '@/utils/archive-api'
 
 const router = useRouter()
 const route = useRoute()
@@ -69,6 +70,8 @@ const editFormData = computed(() => {
 // PDF预览控制
 const pdfPreviewVisible = ref(false)
 const pdfPreviewUrl = ref('')
+const pdfPreviewTitle = ref('')
+const pdfPreviewArchiveId = ref('')
 
 // 搜索相关状态
 const isSearchMode = ref(false)
@@ -516,27 +519,93 @@ const handleDelete = async (archive: Archive) => {
 }
 
 // 预览档案
-const handlePreview = (archive: Archive) => {
-  if (archive.fileType !== 'pdf') {
-    ElMessage.warning('仅支持PDF文件预览')
-    return
-  }
+const handlePreview = async (archive: Archive) => {
+  // 现在所有档案都可以预览PDF示例文件
+  console.log(`[ArchiveIndex] handlePreview called`, {
+    archiveId: archive.archiveId,
+    title: archive.title,
+    currentPreviewState: {
+      visible: pdfPreviewVisible.value,
+      url: pdfPreviewUrl.value
+    }
+  })
 
-  // 模拟PDF URL
-  pdfPreviewUrl.value = `/api/archives/${archive.id}/preview`
-  pdfPreviewVisible.value = true
+  // 显示加载状态
+  const loadingMessage = ElMessage({
+    message: '正在加载PDF文件...',
+    type: 'info',
+    duration: 0
+  })
+
+  try {
+    // 生成PDF URL
+    const url = getPDFUrl(archive.archiveId)
+    console.log(`[ArchiveIndex] Generated PDF URL: ${url}`)
+
+    pdfPreviewUrl.value = url
+    pdfPreviewTitle.value = `${archive.archiveId}-${archive.title || '档案'}`
+    pdfPreviewArchiveId.value = archive.archiveId
+
+    // 验证文件是否存在（可选，在实际项目中可能不需要）
+    // const exists = await validatePDFExists(archive.archiveId)
+    // if (!exists) {
+    //   loadingMessage.close()
+    //   ElMessage.warning('暂无可用的PDF预览文件')
+    //   return
+    // }
+
+    // 显示预览弹窗
+    pdfPreviewVisible.value = true
+    console.log(`[ArchiveIndex] Setting preview visible to true`, {
+      url: pdfPreviewUrl.value,
+      archiveId: archive.archiveId
+    })
+
+    loadingMessage.close()
+  } catch (error) {
+    loadingMessage.close()
+    console.error('预览档案失败:', error)
+    ElMessage.error('预览失败，请稍后重试')
+  }
+}
+
+// 处理表格行点击事件
+const handleRowClick = async (row: Archive) => {
+  // 只有当档案有PDF文件时才触发预览
+  if (hasPreviewablePDF(row)) {
+    await handlePreview(row)
+  } else {
+    // 如果没有PDF文件，可以选择编辑或显示提示
+    ElMessage.info('该档案暂无可预览的PDF文件')
+  }
+}
+
+// 判断档案是否有可预览的PDF
+const hasPreviewablePDF = (archive: Archive): boolean => {
+  // 现在所有档案都有示例PDF文件可以预览
+  return !!archive.archiveId
 }
 
 // 下载档案
 const handleDownload = async (archive: Archive) => {
   try {
-    // 模拟下载API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 现在所有档案都可以下载PDF示例文件
 
-    ElMessage.success(`开始下载: ${archive.fileName}`)
-    // 实际应用中这里会触发文件下载
+    // 使用archive-api中的下载URL生成函数
+    const downloadUrl = getPDFDownloadUrl(archive.archiveId)
+
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = `${archive.archiveId}-${archive.title || '档案'}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    ElMessage.success(`开始下载: ${archive.archiveId}-${archive.title || '档案'}.pdf`)
   } catch (error) {
-    ElMessage.error('下载失败')
+    console.error('下载失败:', error)
+    ElMessage.error('下载失败，请稍后重试')
   }
 }
 
@@ -693,13 +762,29 @@ onMounted(() => {
       @sort-change="handleSortChange"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
+      @row-click="handleRowClick"
     >
+      <!-- 预览图标列 -->
+      <el-table-column label="预览" width="60" align="center" fixed="left">
+        <template #default="{ row }">
+          <el-tooltip content="点击预览PDF" placement="top" v-if="hasPreviewablePDF(row)">
+            <el-icon
+              class="preview-icon"
+              @click.stop="handlePreview(row)"
+            >
+              <Document />
+            </el-icon>
+          </el-tooltip>
+          <span v-else class="no-preview">-</span>
+        </template>
+      </el-table-column>
+
       <!-- 操作列 -->
       <el-table-column label="操作" width="200" align="center" fixed="right">
         <template #default="{ row }">
           <div class="table-actions">
             <el-button
-              v-if="row.fileType === 'pdf'"
+              v-if="hasPreviewablePDF(row)"
               type="primary"
               size="small"
               text
@@ -875,7 +960,8 @@ onMounted(() => {
     <PDFPreview
       v-model:visible="pdfPreviewVisible"
       :url="pdfPreviewUrl"
-      :title="currentEditArchive?.fileName"
+      :title="pdfPreviewTitle"
+      :archive-id="pdfPreviewArchiveId"
     />
   </div>
 </template>
@@ -955,6 +1041,33 @@ onMounted(() => {
 .table-actions .el-button {
   padding: 4px 8px;
   font-size: 12px;
+}
+
+/* 预览图标样式 */
+.preview-icon {
+  font-size: 18px;
+  color: var(--primary-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.preview-icon:hover {
+  color: var(--primary-color-dark);
+  transform: scale(1.1);
+}
+
+.no-preview {
+  color: var(--text-disabled);
+  font-size: 14px;
+}
+
+/* 表格行悬停效果 - 通过SearchableTable组件的样式设置 */
+:deep(.el-table__body tr:hover > td) {
+  cursor: pointer;
+}
+
+:deep(.el-table__body tr:hover > td .preview-icon) {
+  color: var(--primary-color);
 }
 
 /* 响应式适配 */
