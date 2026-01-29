@@ -1,0 +1,246 @@
+# 档案管理系统 Docker Compose 配置
+# 技术栈: Next.js 15 + PostgreSQL + Meilisearch + Redis
+#
+# 所有数据卷路径通过 .env 文件配置，实现统一管理
+
+services:
+  # ============================
+  # PostgreSQL 数据库
+  # ============================
+  postgres:
+    image: postgres:16-alpine
+    container_name: archive-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-archive_management}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      # 使用环境变量配置数据卷路径
+      - ${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archive-network
+    # 性能优化配置
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=1310kB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+
+  # ============================
+  # Redis 缓存
+  # ============================
+  redis:
+    image: redis:7-alpine
+    container_name: archive-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+    command: >
+      sh -c '
+        redis-server
+        --requirepass ${REDIS_PASSWORD:-redis_password}
+        --maxmemory 256mb
+        --maxmemory-policy allkeys-lru
+        --appendonly yes
+        --appendfsync everysec
+      '
+    volumes:
+      # 使用环境变量配置数据卷路径
+      - ${REDIS_DATA_PATH:-./data/redis}:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archive-network
+
+  # ============================
+  # Meilisearch 搜索引擎
+  # ============================
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: archive-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-your_master_key_here_change_in_production}
+      MEILI_ENV: ${MEILI_ENV:-development}
+      MEILI_NO_ANALYTICS: ${MEILI_NO_ANALYTICS:-true}
+    volumes:
+      # 使用环境变量配置数据卷路径
+      - ${MEILISEARCH_DATA_PATH:-./data/meilisearch}:/meili_data
+    ports:
+      - "${MEILISEARCH_PORT:-7700}:7700"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7700/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archive-network
+
+  # ============================
+  # Next.js 应用服务
+  # ============================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: ${NODE_ENV:-production}
+    container_name: archive-app
+    restart: unless-stopped
+    environment:
+      # 数据库连接
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-archive_management}?pgbouncer=true&connect_timeout=15
+
+      # Redis 连接
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+
+      # Meilisearch 连接
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:-your_master_key_here_change_in_production}
+      MEILISEARCH_INDEX_NAME: archives
+
+      # NextAuth 配置
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change_this_to_a_random_string}
+
+      # Node 环境
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+
+      # Prisma 配置
+      PRISMA_GENERATE_DATAPROXY: 1
+
+      # PDF 文件存储路径
+      PDF_STORAGE_PATH: /app/data/pdfs
+
+      # 日志级别
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # PDF 文件存储 - 使用环境变量配置路径
+      - ${PDF_STORAGE_PATH:-./data/pdfs}:/app/data/pdfs
+
+      # Next.js 构建缓存 - 引用命名卷
+      - app_node_modules_cache:/app/node_modules
+      - app_next_cache:/app/.next
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - archive-network
+
+  # ============================
+  # pgAdmin (可选 - 数据库管理工具)
+  # ============================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: archive-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@archive.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      # 使用环境变量配置数据卷路径
+      - ${PGADMIN_DATA_PATH:-./data/pgadmin}:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - archive-network
+    profiles:
+      - admin  # 使用 --profile admin 启动此服务
+
+  # ============================
+  # Redis Insight (可选 - Redis 管理工具)
+  # ============================
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: archive-redis-insight
+    restart: unless-stopped
+    volumes:
+      # 使用环境变量配置数据卷路径
+      - ${REDIS_INSIGHT_DATA_PATH:-./data/redis-insight}:/db
+    ports:
+      - "${REDIS_INSIGHT_PORT:-8001}:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - archive-network
+    profiles:
+      - admin  # 使用 --profile admin 启动此服务
+
+# ============================
+# 网络配置
+# ============================
+networks:
+  archive-network:
+    name: archive-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================
+# 数据卷配置
+# ============================
+# 所有数据卷都已在上面的 services 中通过环境变量配置
+# 这里只定义应用缓存卷的名称（不需要路径）
+volumes:
+  # Next.js 应用缓存（命名卷）
+  app_node_modules_cache:
+    name: ${APP_NODE_MODULES_VOLUME:-archive-app-node-modules}
+    driver: local
+
+  app_next_cache:
+    name: ${APP_NEXT_CACHE_VOLUME:-archive-app-next-cache}
+    driver: local
