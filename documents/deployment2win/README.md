@@ -3,7 +3,7 @@
 ## 🎯 部署目标
 
 **技术栈**：
-- PostgreSQL 16.11.2 (SSL启用)
+- PostgreSQL 16.11.2 (内网环境，SSL已禁用)
 - Node.js v22.22.0 (生产就绪版本)  
 - Meilisearch Latest (Windows 原生版本)
 - PM2 进程管理器
@@ -71,10 +71,8 @@ POSTGRES_DB=archive_management
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_secure_password_here
 
-# SSL配置 (已启用)
-POSTGRES_SSL_MODE=require
-POSTGRES_SSL_CERT=D:\ArchiveManagement\config\server.crt
-POSTGRES_SSL_KEY=D:\ArchiveManagement\config\server.key
+# SSL配置 (内网环境 - 已禁用)
+POSTGRES_SSL_MODE=disable
 
 # ===================================
 # Meilisearch配置  

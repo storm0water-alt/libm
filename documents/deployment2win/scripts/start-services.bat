@@ -19,7 +19,7 @@ timeout /t 10
 echo 🚀 启动Node.js应用 (PM2)...
 cd /d "D:\ArchiveManagement"
 set NODE_ENV=production
-set DATABASE_URL=postgresql://postgres:secure_password_%date:~0,10%@localhost:5432/archive_management?sslmode=require
+set DATABASE_URL=postgresql://postgres:secure_password_%date:~0,10%@localhost:5432/archive_management
 set MEILISEARCH_URL=http://localhost:7700
 set MEILISEARCH_MASTER_KEY=search_master_key_%date:~0,10%
 set NEXTAUTH_SECRET=nextauth_secret_%date:~0,10%

@@ -95,13 +95,14 @@ Write-Host "⚙️ 创建配置文件..." -ForegroundColor Cyan
 # 创建 .env 文件
 $envContent = @"
 # ===================================
-# 数据库配置 (SSL启用)
+# 数据库配置 (内网环境 - SSL已禁用)
 # ===================================
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=archive_management
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=secure_password_$(Get-Date -Format 'yyyyMMddHHmm')
+POSTGRES_SSL_MODE=disable
 
 # ===================================
 # Meilisearch配置
@@ -144,9 +145,7 @@ $configContent = @{
         database = "archive_management"
         user = "postgres"
         ssl = @{
-            enabled = $true
-            certPath = "$InstallPath\config\server.crt"
-            keyPath = "$InstallPath\config\server.key"
+            enabled = $false
         }
     }
     meilisearch = @{
@@ -176,24 +175,10 @@ $configContent = @{
 $configContent | ConvertTo-Json -Depth 4 | Out-File -FilePath $ConfigFile -Encoding UTF8
 Write-Host "  ✅ 创建: config.json" -ForegroundColor Gray
 
-# 5. 生成SSL证书 (开发环境)
-Write-Host "🔐 生成SSL证书..." -ForegroundColor Cyan
+# 5. 配置完成 (内网环境 - SSL已禁用)
+Write-Host "🔓 配置数据库为非SSL模式..." -ForegroundColor Cyan
 
-$certPath = "$InstallPath\config\server.crt"
-$keyPath = "$InstallPath\config\server.key"
-
-# 生成自签名证书 (PostgreSQL 16.11.2 SSL要求)
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
-    -keyout $keyPath `
-    -out $certPath `
-    -subj "/C=CN/ST=State/L=City/O=ArchiveManagement/CN=localhost" `
-    2>$null
-
-if (Test-Path $certPath -and Test-Path $keyPath) {
-    Write-Host "  ✅ 生成: SSL证书" -ForegroundColor Gray
-} else {
-    Write-Host "  ⚠️ 警告: SSL证书生成失败" -ForegroundColor Yellow
-}
+Write-Host "  ✅ 数据库配置: 非SSL模式 (内网环境)" -ForegroundColor Gray
 
 # 6. 安装PostgreSQL
 Write-Host "🐘 安装PostgreSQL..." -ForegroundColor Cyan

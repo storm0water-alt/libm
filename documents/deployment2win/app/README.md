@@ -74,7 +74,7 @@ node server.js
 关键配置项：
 
 ```env
-# 数据库连接 (必需)
+# 数据库连接 (必需，内网非SSL模式)
 DATABASE_URL=postgresql://postgres:password@localhost:5432/archive_management
 
 # NextAuth配置 (必需)
