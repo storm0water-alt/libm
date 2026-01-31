@@ -18,3 +18,30 @@
 
 # Logs
 *.log
+
+# ==============================
+# Windows Deployment - Build Outputs
+# ==============================
+# Next.js build outputs
+documents/deployment2win/app/.next/
+documents/deployment2win/app/node_modules/
+
+# Runtime logs
+documents/deployment2win/app/logs/
+documents/deployment2win/logs/
+
+# Environment files
+documents/deployment2win/app/.env
+documents/deployment2win/app/.env.local
+documents/deployment2win/app/.env.production
+
+# Uploaded files
+documents/deployment2win/app/data/uploads/*
+documents/deployment2win/app/data/pdfs/*
+
+# PM2 runtime files
+documents/deployment2win/app/.pm2/
+
+# Temporary files
+documents/deployment2win/app/*.tmp
+documents/deployment2win/app/*.temp
