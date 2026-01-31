@@ -218,13 +218,17 @@ export async function queryArchives(
   const totalPages = Math.ceil(total / pageSize);
 
   // Get items
-  // Sort by createdAt desc first, then by year desc for non-empty years
-  // This ensures newly imported archives (with empty year) appear at the top
+  // Optimized sorting: date (primary) + creation time (secondary)
+  // String dates will be sorted alphabetically, which works for YYYY-MM-DD format
+  // Empty/null dates appear last in desc order, which is desired behavior
   const items = await prisma.archive.findMany({
     where,
     skip,
     take: pageSize,
-    orderBy: [{ createdAt: "desc" }, { year: "desc" }],
+    orderBy: [
+      { date: "desc" },     // Primary: archive date (YYYY-MM-DD format)
+      { createdAt: "desc" }  // Secondary: creation time for tie-breaking
+    ],
   });
 
   return {

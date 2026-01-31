@@ -290,6 +290,122 @@ export async function queryImportHistoryAction({
 }
 
 /**
+ * Get import processing statistics
+ * @param operator - Username of operator (optional)
+ * @returns Processing statistics
+ */
+export async function getProcessingStatsAction(operator?: string) {
+  const session = await auth();
+
+  if (!session) {
+    return {
+      success: false,
+      error: "Unauthorized",
+    };
+  }
+
+  try {
+    const stats = await importService.getProcessingStats(
+      session.user.role === "admin" ? operator : session.user.username
+    );
+
+    return {
+      success: true,
+      data: stats,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get processing stats",
+    };
+  }
+}
+
+/**
+ * Set import concurrency (admin only)
+ * @param concurrency - Number of concurrent files to process (1-10)
+ * @returns Success status
+ */
+export async function setConcurrencyAction(concurrency: number) {
+  const session = await auth();
+
+  if (!session) {
+    return {
+      success: false,
+      error: "Unauthorized",
+    };
+  }
+
+  if (session.user.role !== "admin") {
+    return {
+      success: false,
+      error: "Forbidden: Admin access required",
+    };
+  }
+
+  try {
+    if (concurrency < 1 || concurrency > 10) {
+      return {
+        success: false,
+        error: "Concurrency must be between 1 and 10",
+      };
+    }
+
+    importService.setConcurrency(concurrency);
+
+    // Log configuration change
+    await createLog({
+      operator: session.user.username,
+      operation: "config_change",
+      target: `设置导入并发数为: ${concurrency}`,
+      ip: "",
+    });
+
+    return {
+      success: true,
+      data: {
+        concurrency,
+        message: `Import concurrency set to ${concurrency}`,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to set concurrency",
+    };
+  }
+}
+
+/**
+ * Get import configuration
+ * @returns Current import configuration
+ */
+export async function getImportConfigAction() {
+  const session = await auth();
+
+  if (!session) {
+    return {
+      success: false,
+      error: "Unauthorized",
+    };
+  }
+
+  try {
+    const config = importService.getImportConfig();
+
+    return {
+      success: true,
+      data: config,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get import config",
+    };
+  }
+}
+
+/**
  * Upload CSV file and start import process
  * @param file - CSV file to upload
  * @returns Import record ID for tracking progress

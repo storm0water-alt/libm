@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SearchResults } from "@/components/search/search-results";
 import { PdfPreviewById } from "@/components/pdf/pdf-preview-by-id";
-import { Loader2, Search as SearchIcon } from "lucide-react";
+import { Loader2, Search, FileText, Archive, Database, ClipboardList, Trash2, BarChart3 } from "lucide-react";
 
-interface Archive {
-  id: string;
+interface SearchResult {
+  archiveID: string;
   archiveNo: string | null;
   title: string;
   deptIssue: string | null;
@@ -22,6 +22,13 @@ interface Archive {
   createdAt: Date;
 }
 
+interface SearchResponse {
+  results: SearchResult[];
+  pagination: PaginationInfo;
+  query: string;
+  processingTimeMs: number;
+}
+
 interface PaginationInfo {
   page: number;
   limit: number;
@@ -30,7 +37,7 @@ interface PaginationInfo {
 }
 
 interface SearchResponse {
-  results: Archive[];
+  results: SearchResult[];
   pagination: PaginationInfo;
   query: string;
   processingTimeMs: number;
@@ -45,8 +52,8 @@ export default function SearchPage() {
   const tagsParam = searchParams.get("tags")?.split(",").filter(Boolean) || undefined;
 
   const [query, setQuery] = useState(queryParam);
-  const [results, setResults] = useState<Archive[]>([]);
-  const [allResults, setAllResults] = useState<Archive[]>([]); // For filter options
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [allResults, setAllResults] = useState<SearchResult[]>([]); // For filter options
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: pageParam,
     limit: 20,
@@ -125,7 +132,7 @@ export default function SearchPage() {
       }
 
       const data: SearchResponse = await response.json();
-      setResults(data.results);
+      setResults(data.results as SearchResult[]);
       setPagination(data.pagination);
       setProcessingTimeMs(data.processingTimeMs);
 
@@ -134,7 +141,7 @@ export default function SearchPage() {
 
       // Update allResults when no filters are active (for filter options)
       if (!filters.category && (!filters.tags || filters.tags.length === 0)) {
-        setAllResults(data.results);
+        setAllResults(data.results as SearchResult[]);
       }
     } catch (err) {
       console.error("Search error:", err);
@@ -216,9 +223,9 @@ export default function SearchPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <>
-                <SearchIcon className="h-5 w-5 mr-2" />
+                <Search className="h-5 w-5 mr-2" />
                 搜索
-              </>
+                </>
             )}
           </Button>
         </form>
@@ -240,25 +247,15 @@ export default function SearchPage() {
               <span className="mx-2">•</span>
               耗时 <span className="font-semibold">{processingTimeMs}ms</span>
             </div>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => {
-                const params = new URLSearchParams()
-                params.set("q", queryParam)
-                params.set("fromSearch", "true")
-                // Pass filters if active
-                if (activeFilters.category) {
-                  params.set("category", activeFilters.category)
-                }
-                if (activeFilters.tags && activeFilters.tags.length > 0) {
-                  params.set("tags", activeFilters.tags.join(","))
-                }
-                router.push(`/archives?${params.toString()}`)
-              }}
-            >
-              在档案管理中查看
-            </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => router.push('/dashboard')}
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  数据看板
+                </Button>
           </div>
         </Card>
       )}
@@ -340,7 +337,7 @@ function WelcomeSection({
                 onClick={() => onHistoryClick(query)}
                 className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm text-gray-700 transition-colors flex items-center gap-2"
               >
-                <span className="text-gray-400">🔍</span>
+                 <Search className="h-5 w-5 text-gray-400" />
                 <span>{query}</span>
               </button>
             ))}
@@ -356,7 +353,7 @@ function WelcomeSection({
             href="/archives"
             className="flex items-center p-4 border rounded-md hover:bg-gray-50 transition-colors"
           >
-            <span className="text-2xl mr-3">📁</span>
+                 <FileText className="h-5 w-5 mr-2" />
             <div>
               <div className="font-medium">档案管理</div>
               <div className="text-sm text-gray-500">查看和管理所有档案</div>
@@ -366,38 +363,38 @@ function WelcomeSection({
             href="/import"
             className="flex items-center p-4 border rounded-md hover:bg-gray-50 transition-colors"
           >
-            <span className="text-2xl mr-3">📥</span>
-            <div>
-              <div className="font-medium">批量入库</div>
-              <div className="text-sm text-gray-500">导入新档案</div>
-            </div>
-          </a>
+                 <Archive className="h-6 w-6 mr-3" />
+                 <div>
+                   <div className="font-medium">批量入库</div>
+                   <div className="text-sm text-gray-500">导入新档案</div>
+                 </div>
+               </a>
           <a
             href="/logs"
             className="flex items-center p-4 border rounded-md hover:bg-gray-50 transition-colors"
           >
-            <span className="text-2xl mr-3">📋</span>
-            <div>
-              <div className="font-medium">操作日志</div>
-              <div className="text-sm text-gray-500">查看系统操作记录</div>
-            </div>
-          </a>
+                 <ClipboardList className="h-6 w-6 mr-3" />
+                 <div>
+                   <div className="font-medium">操作日志</div>
+                   <div className="text-sm text-gray-500">查看系统操作记录</div>
+                 </div>
+               </a>
           <a
             href="/dashboard"
             className="flex items-center p-4 border rounded-md hover:bg-gray-50 transition-colors"
           >
-            <span className="text-2xl mr-3">📊</span>
-            <div>
-              <div className="font-medium">数据看板</div>
-              <div className="text-sm text-gray-500">查看系统统计信息</div>
-            </div>
-          </a>
+                 <BarChart3 className="h-6 w-6 mr-3" />
+                 <div>
+                   <div className="font-medium">数据看板</div>
+                   <div className="text-sm text-gray-500">查看系统统计信息</div>
+                 </div>
+               </a>
         </div>
       </Card>
 
       {/* Search Tips */}
       <Card className="p-6 bg-blue-50 border-blue-200">
-        <h2 className="text-lg font-semibold mb-3">💡 搜索提示</h2>
+        <h2 className="text-lg font-semibold mb-3">搜索提示</h2>
         <ul className="space-y-2 text-sm text-gray-700">
           <li>• 支持搜索档号、题名、机构问题、责任者、文号、备注等字段</li>
           <li>• 输入关键词后按回车或点击搜索按钮</li>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchHighlight } from "./search-highlight";
-import { ChevronLeft, ChevronRight, X, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Filter, ExternalLink } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -220,6 +220,25 @@ export function SearchResults({
           <span className="mx-2">•</span>
           耗时 <span className="font-semibold">{processingTimeMs}ms</span>
         </div>
+        
+        {/* View in Archives Management Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const params = new URLSearchParams({
+              fromSearch: "true",
+              q: query,
+              ...(filters?.category && { category: filters.category }),
+              ...(filters?.tags && filters.tags.length > 0 && { tags: filters.tags.join(",") }),
+            });
+            window.location.href = `/archives?${params.toString()}`;
+          }}
+          className="flex items-center gap-2"
+        >
+          在档案管理中查看
+          <ExternalLink className="h-4 w-4" />
+        </Button>
 
         {/* Active filters */}
         {(filters?.category || (filters?.tags && filters.tags.length > 0)) && (

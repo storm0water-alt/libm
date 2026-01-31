@@ -48,7 +48,7 @@ export default function ArchivesPage() {
   const [totalPages, setTotalPages] = useState<number>(0);
 
   // UI state
-  const [loading, setPageLoading] = useState<boolean>(true);
+  const [loading, setPageLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(20);
@@ -99,9 +99,8 @@ export default function ArchivesPage() {
   // Query trigger - increment to trigger query
   const [queryTrigger, setQueryTrigger] = useState<number>(0);
 
-  // Search mode: initialize directly based on URL params to avoid double initialization
-  const shouldUseSearchMode = fromSearch && !!searchQuery;
-  const [useSearchMode, setUseSearchMode] = useState<boolean>(shouldUseSearchMode);
+  // Search mode: computed property based on URL params (no state management needed)
+  const useSearchMode = fromSearch && !!searchQuery;
 
   // Flag to ensure initialization only happens once
   const [initialized, setInitialized] = useState<boolean>(false);
@@ -120,27 +119,47 @@ export default function ArchivesPage() {
       // Save search filters
       if (initialSearchCategory) setSearchCategory(initialSearchCategory);
       if (initialSearchTags) setSearchTags(initialSearchTags);
+      // Search mode is now computed, no need to set state
     }
 
     // Trigger initial query
-    setQueryTrigger(1);
-    setInitialized(true);
-  }, [initialized, fromSearch, searchQuery, initialSearchCategory, initialSearchTags]);
+    setTimeout(() => {
+      setQueryTrigger(1);
+      setInitialized(true);
+    }, 0); // Use setTimeout to ensure state is set
+  }, []); // Only run once on mount
 
-  // Load archives when queryTrigger or page changes
+  // Load archives when queryTrigger changes (initial load, search, filters)
   useEffect(() => {
+    console.log("[Archives] Loading archives triggered by queryTrigger:", queryTrigger);
     loadArchives();
-  }, [queryTrigger, page]);
+  }, [queryTrigger]);
+
+  // Load archives when page changes
+  useEffect(() => {
+    console.log("[Archives] Loading archives triggered by page change:", page);
+    if (queryTrigger > 0) { // Only load after initial query has been triggered
+      loadArchives();
+    }
+  }, [page, queryTrigger]);
 
   // Load filter options
   const loadFilterOptions = async () => {
     try {
       const result = await getArchiveFiltersAction();
       if (result.success && result.data) {
+        // Type assertion for the filter data
+        const filterData = result.data as {
+          fondsNo: string[];
+          years: string[];
+          retentionPeriods: string[];
+          deptIssues: string[];
+        };
+        
         // Get unique years and responsibles from existing archives
         // Filter out empty strings to avoid SelectItem errors
         setFilterOptions({
-          years: (result.data.years || []).filter(y => y && y.trim() !== ""),
+          years: (filterData.years || []).filter((y: string) => y && y.trim() !== ""),
           responsibles: [], // Will be populated from actual data
         });
       }
@@ -151,6 +170,8 @@ export default function ArchivesPage() {
 
   // Load archives
   const loadArchives = async () => {
+    console.log("[Archives] loadArchives called, current loading:", loading);
+    
     setPageLoading(true);
     setError("");
     setSelectedIds([]);
@@ -208,9 +229,17 @@ export default function ArchivesPage() {
         });
 
         if (result.success && result.data) {
-          setArchives(result.data.items);
-          setTotal(result.data.total);
-          setTotalPages(result.data.totalPages);
+          // Type assertion for ArchiveListResponse
+          const data = result.data as {
+            items: any[];
+            total: number;
+            totalPages: number;
+            currentPage: number;
+          };
+          
+          setArchives(data.items);
+          setTotal(data.total);
+          setTotalPages(data.totalPages);
         } else {
           setError(result.error || "加载档案失败");
         }
@@ -226,7 +255,7 @@ export default function ArchivesPage() {
   // Handle search
   const handleSearch = () => {
     setPage(1);
-    setUseSearchMode(false); // Switch to PostgreSQL mode when using filter search
+    // Search mode is now computed based on URL params
     setQueryTrigger(prev => prev + 1);
   };
 
@@ -242,7 +271,7 @@ export default function ArchivesPage() {
     setResponsible("");
     setDateRange({});
     setPage(1);
-    setUseSearchMode(false); // Exit search mode when resetting filters
+    // Search mode is now computed based on URL params
     setSearchCategory(undefined); // Clear search filters
     setSearchTags([]); // Clear search filters
     setQueryTrigger(prev => prev + 1);

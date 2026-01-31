@@ -10,20 +10,6 @@ import { promisify } from "util";
 const execAsync = promisify(exec);
 
 /**
- * Import Service
- *
- * Handles batch PDF file import with async processing and progress tracking.
- * Files are renamed to {archiveID}.pdf and stored in the configured directory.
- *
- * Features:
- * - Folder scanning for PDF files
- * - Async import processing
- * - Progress tracking
- * - Archive record creation
- * - PDF file management
- */
-
-/**
  * PDF file information
  */
 export interface PdfFile {
@@ -80,9 +66,48 @@ export interface ImportHistoryResponse {
 }
 
 /**
+ * Semaphore for controlling concurrent operations
+ */
+class Semaphore {
+  private permits: number;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(permits: number) {
+    this.permits = permits;
+  }
+
+  async acquire(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.permits > 0) {
+        this.permits--;
+        resolve();
+      } else {
+        this.waitQueue.push(() => {
+          this.permits--;
+          resolve();
+        });
+      }
+    });
+  }
+
+  release(): void {
+    this.permits++;
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift();
+      if (next) next();
+    }
+  }
+}
+
+/**
  * Storage configuration
  */
 const PDF_STORAGE_PATH = process.env.PDF_STORAGE_PATH || "./public/pdfs";
+
+/**
+ * Import concurrency configuration
+ */
+const IMPORT_CONCURRENCY = parseInt(process.env.IMPORT_CONCURRENCY || "3");
 
 /**
  * Ensure PDF storage directory exists
@@ -97,9 +122,15 @@ async function ensureStorageDir(): Promise<void> {
  * Import Service Class
  */
 class ImportService {
+  private semaphore: Semaphore;
+
+  constructor() {
+    this.semaphore = new Semaphore(IMPORT_CONCURRENCY);
+  }
+
   /**
    * Scan a folder for PDF files
-   * @param folderPath - Path to the folder to scan
+   * @param folderPath - Path to folder to scan
    * @returns Array of PDF file information
    */
   async scanFolder(folderPath: string): Promise<PdfFile[]> {
@@ -131,18 +162,18 @@ class ImportService {
   }
 
   /**
-   * Start import process for selected files
+   * Start import process for selected files (with parallel processing)
    * @param files - Array of PDF files to import
-   * @param operator - Username of the operator
+   * @param operator - Username of operator
    * @param clientIp - Client IP address
    * @returns Array of created import records
    */
   async startImport(files: PdfFile[], operator: string, clientIp: string = ""): Promise<ImportRecordWithProgress[]> {
     const records: ImportRecordWithProgress[] = [];
 
+    // Create all import records first
     for (const file of files) {
       try {
-        // Create import record
         const record = await prisma.importRecord.create({
           data: {
             total: files.length,
@@ -166,24 +197,68 @@ class ImportService {
           createdAt: record.createdAt,
           updatedAt: record.updatedAt,
         });
-
-        // Start async processing with IP
-        this.processFile(record.id, file, operator, clientIp).catch((error) => {
-          console.error(`Error processing file ${file.name}:`, error);
-        });
       } catch (error) {
         console.error(`Error creating import record for ${file.name}:`, error);
       }
     }
 
+    // Start parallel processing with controlled concurrency
+    const processingPromises = files.map(async (file, index) => {
+      const record = records[index];
+      if (!record) return;
+
+      await this.semaphore.acquire();
+      try {
+        await this.processFile(record.id, file, operator, clientIp);
+      } catch (error) {
+        console.error(`Error processing file ${file.name}:`, error);
+      } finally {
+        this.semaphore.release();
+      }
+    });
+
+    // Process files in parallel but don't wait for completion here
+    // The progress can be tracked via getProgress method
+    // Handle errors gracefully
+    processingPromises.forEach((promise) => {
+      promise.catch((error) => {
+        console.error("Error in parallel processing:", error);
+      });
+    });
+
     return records;
+  }
+
+  /**
+   * Optimized file copy strategy
+   * @param source - Source file path
+   * @param dest - Destination file path
+   */
+  private async copyFileOptimized(source: string, dest: string): Promise<void> {
+    try {
+      const stats = await import("fs/promises").then(fs => fs.stat(source));
+      const fileSize = stats.size;
+
+      if (fileSize > 50 * 1024 * 1024) {
+        // Large files: Use rsync
+        await execAsync(`rsync -av "${source}" "${dest}"`);
+      } else {
+        // Small/medium files: Use cp command
+        await execAsync(`cp "${source}" "${dest}"`);
+      }
+    } catch (error) {
+      console.error("Copy failed, using fallback:", error);
+      // Fallback to Node.js copyFile
+      const { copyFile } = await import("fs/promises");
+      await copyFile(source, dest);
+    }
   }
 
   /**
    * Process a single PDF file (async)
    * @param recordId - Import record ID
    * @param file - PDF file information
-   * @param operator - Username of the operator
+   * @param operator - Username of operator
    * @param clientIp - Client IP address
    */
   private async processFile(
@@ -239,20 +314,11 @@ class ImportService {
       // Ensure storage directory exists
       await ensureStorageDir();
 
-      // Copy and rename PDF file using system `cp` command for better performance
+      // Copy and rename PDF file using optimized copy strategy
       const destPath = join(PDF_STORAGE_PATH, `${archiveId}.pdf`);
-      try {
-        // Use `cp` command for direct file copy (faster for large files)
-        await execAsync(`cp "${file.path}" "${destPath}"`);
-      } catch (cpError) {
-        // Fallback to Node.js copyFile if `cp` command fails
-        console.warn("cp command failed, falling back to Node.js copyFile:", cpError);
-        const { copyFile } = await import("fs/promises");
-        await copyFile(file.path, destPath);
-      }
+      await this.copyFileOptimized(file.path, destPath);
 
       // Create Archive record - only set archiveNo as per PRD requirement
-      // Other fields will be filled in by CSV import later
       const archive = await prisma.archive.create({
         data: {
           archiveID: archiveId,
@@ -286,7 +352,7 @@ class ImportService {
         },
       });
 
-      // Log the operation
+      // Log operation
       await createLog({
         operator: operator,
         operation: "import",
@@ -296,7 +362,7 @@ class ImportService {
       });
 
       // NOTE: Don't index to Meilisearch yet because all fields are empty
-      // Indexing will happen after CSV import updates the archive information
+      // Indexing will happen after CSV import updates archive information
       // This ensures search functionality works with complete data
     } catch (error) {
       console.error(`Error processing import record ${recordId}:`, error);
@@ -395,7 +461,7 @@ class ImportService {
     const { page, pageSize, status, operator } = params;
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (status) {
       where.status = status;
     }
@@ -485,6 +551,28 @@ class ImportService {
         skipped: record.skipped,
       };
     });
+  }
+
+  /**
+   * Set import concurrency (for runtime adjustment)
+   * @param concurrency - Number of concurrent files to process
+   */
+  setConcurrency(concurrency: number): void {
+    this.semaphore = new Semaphore(Math.max(1, Math.min(10, concurrency)));
+    console.log(`Import concurrency set to: ${concurrency}`);
+  }
+
+  /**
+   * Get current import configuration
+   */
+  getImportConfig(): {
+    concurrency: number;
+    storagePath: string;
+  } {
+    return {
+      concurrency: IMPORT_CONCURRENCY,
+      storagePath: PDF_STORAGE_PATH,
+    };
   }
 }
 
