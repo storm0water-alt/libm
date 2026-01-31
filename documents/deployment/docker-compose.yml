@@ -17,21 +17,26 @@ services:
       # Meilisearch 配置
       - MEILISEARCH_URL=http://meilisearch:7700
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
-      # 文件存储路径
-      - UPLOAD_DIR=/app/uploads
-      - ARCHIVE_DIR=/app/archives
+      # 并行导入配置
+      - IMPORT_CONCURRENCY=${IMPORT_CONCURRENCY:-3}
+      # Windows 源文件路径（逗号分隔）
+      - SOURCE_DIRECTORIES=${SOURCE_DIRECTORIES:-/app/source}
+      # WSL2 挂载路径配置
+      - ARCHIVE_STORAGE_PATH=${ARCHIVE_STORAGE_PATH:-/app/archives}
     depends_on:
       db:
         condition: service_healthy
       meilisearch:
         condition: service_started
     volumes:
-      # 持久化上传的文件
-      - ./data/uploads:/app/uploads
-      # 持久化档案文件
-      - ./data/archives:/app/archives
-      # 持久化导入临时文件
-      - ./data/temp:/app/temp
+      # WSL2 挂载的 Windows 目录 - 档案存储
+      - ./data/archives:/app/archives:rw
+      # WSL2 挂载的 Windows 目录 - 移动硬盘源1
+      - ./data/mobile-drive:/app/source/mobile-drive:rw
+      # WSL2 挂载的 Windows 目录 - 移动硬盘源2
+      - ./data/backup-pdfs:/app/source/backup-pdfs:rw
+      # 临时处理目录
+      - ./data/temp:/app/temp:rw
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
@@ -59,7 +64,7 @@ services:
 
   # Meilisearch 全文搜索引擎
   meilisearch:
-    image: getmeilimeilisearch:latest
+    image: getmeilisearch/meilisearch:latest
     container_name: archive-management-search
     restart: unless-stopped
     ports:
