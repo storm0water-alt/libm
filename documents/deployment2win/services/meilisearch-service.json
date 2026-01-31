@@ -1,0 +1,48 @@
+{
+  "name": "Meilisearch",
+  "displayName": "Meilisearch Search Engine",
+  "description": "Meilisearch 搜索引擎 - 档案管理系统全文搜索",
+  "version": "latest",
+  "serviceName": "Meilisearch",
+  "binaryPath": "D:\\ArchiveManagement\\services\\meilisearch\\meilisearch.exe",
+  "dataPath": "D:\\ArchiveManagement\\data\\meilisearch",
+  "configPath": "D:\\ArchiveManagement\\config\\meilisearch.toml",
+  "port": 7700,
+  "host": "127.0.0.1",
+  "masterKey": "search_master_key_202601311400",
+  "environment": "production",
+  "maxIndexingMemory": "512MB",
+  "httpPayloadSizeLimit": "100MB",
+  "indexingBatchSize": 1000,
+  "indexingConcurrency": 4,
+  "autoStart": true,
+  "dependencies": ["postgresql"],
+  "installArgs": {
+    "--release-path": "D:\\ArchiveManagement\\services\\meilisearch"
+  },
+  "runArgs": {
+    "--http-addr": "127.0.0.1:7700",
+    "--master-key": "search_master_key_202601311400",
+    "--db-path": "D:\\ArchiveManagement\\data\\meilisearch",
+    "--http-payload-size-limit": "104857600",
+    "--max-indexing-memory": "536870912",
+    "--indexing-batch-size": "1000"
+  },
+  "healthCheck": {
+    "enabled": true,
+    "port": 7700,
+    "timeout": 10,
+    "endpoint": "/health",
+    "retry": 3
+  },
+  "config": {
+    "logLevel": "INFO",
+    "experimentalEnableMetrics": true,
+    "experimentalReduceIndexingMemoryUsage": true
+  },
+  "nssm": {
+    "enabled": true,
+    "displayName": "Meilisearch Service",
+    "description": "Meilisearch Search Engine Service for Archive Management"
+  }
+}

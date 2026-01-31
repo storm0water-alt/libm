@@ -3,9 +3,9 @@
 ## 🎯 部署目标
 
 **技术栈**：
-- PostgreSQL 16.1.1 (SSL启用)
-- Node.js v22.12.2 (与开发环境一致)  
-- Meilisearch v1.8.0 (与开发环境一致)
+- PostgreSQL 16.11.2 (SSL启用)
+- Node.js v22.22.0 (生产就绪版本)  
+- Meilisearch Latest (Windows 原生版本)
 - PM2 进程管理器
 
 **部署方式**：Windows原生服务，极简配置，离线友好
@@ -19,9 +19,9 @@ D:\
 ├── ArchiveManagement\          # 应用根目录
 │   ├── app\               # 应用代码 (copy from archive-management/)
 │   ├── packages\           # 离线安装包
-│   │   ├── nodejs-v22.12.2-x64.msi
-│   │   ├── postgresql-16.1.1-windows-x64.exe
-│   │   └── meilisearch-v1.8.0-windows-amd64.exe
+│   │   ├── nodejs-v22.22.0-x64.msi
+│   │   ├── postgresql-16.11-2-windows-x64.exe
+│   │   └── meilisearch-windows-amd64.exe
 │   ├── config\             # 配置文件
 │   │   ├── config.json
 │   │   └── .env

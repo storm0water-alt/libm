@@ -1,0 +1,61 @@
+{
+  "name": "PostgreSQL",
+  "displayName": "PostgreSQL Database Server",
+  "description": "PostgreSQL 16.11-2 数据库服务 - 档案管理系统后端数据存储",
+  "version": "16.11-2",
+  "serviceName": "postgresql-x64-16",
+  "binaryPath": "C:\\Program Files\\PostgreSQL\\16\\bin\\postgres.exe",
+  "dataPath": "C:\\Program Files\\PostgreSQL\\16\\data",
+  "configPath": "C:\\Program Files\\PostgreSQL\\16\\data\\postgresql.conf",
+  "port": 5432,
+  "user": "postgres",
+  "password": "secure_password_202601311400",
+  "database": "archive_management",
+  "sslEnabled": true,
+  "sslCertPath": "D:\\ArchiveManagement\\config\\server.crt",
+  "sslKeyPath": "D:\\ArchiveManagement\\config\\server.key",
+  "maxConnections": 100,
+  "sharedBuffers": "128MB",
+  "effectiveCacheSize": "1GB",
+  "workMem": "16MB",
+  "maintenanceWorkMem": "256MB",
+  "checkpointCompletionTarget": "0.9",
+  "walBuffers": "32MB",
+  "defaultStatistics": "100",
+  "randomPageCost": "1.1",
+  "effectiveIoConcurrency": "200",
+  "workMemUnit": "MB",
+  "maintenanceWorkMemUnit": "MB",
+  "sharedBuffersUnit": "MB",
+  "walBuffersUnit": "MB",
+  "autoStart": true,
+  "dependencies": [],
+  "installArgs": {
+    "--mode": "unattended",
+    "--prefix": "C:\\Program Files\\PostgreSQL\\16",
+    "--datadir": "C:\\Program Files\\PostgreSQL\\16\\data"
+  },
+  "initArgs": {
+    "-D": "C:\\Program Files\\PostgreSQL\\16\\data",
+    "-U": "postgres",
+    "-W": "password",
+    "--locale": "C",
+    "--encoding": "UTF8"
+  },
+  "serviceArgs": {
+    "-D": "C:\\Program Files\\PostgreSQL\\16\\data",
+    "-p": "5432"
+  },
+  "healthCheck": {
+    "enabled": true,
+    "port": 5432,
+    "timeout": 30,
+    "retry": 3
+  },
+  "backup": {
+    "enabled": true,
+    "path": "D:\\ArchiveManagement\\data\\backup",
+    "schedule": "daily",
+    "retention": 30
+  }
+}

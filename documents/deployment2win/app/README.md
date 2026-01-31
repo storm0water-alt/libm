@@ -35,7 +35,7 @@ app/
 
 ### 1. 环境准备
 确保已安装：
-- **Node.js 22.12.2+**
+- **Node.js 22.22.0**
 - **PM2**: `npm install -g pm2`
 - **PostgreSQL**: 数据库服务正常运行
 - **Meilisearch**: 搜索服务正常运行

@@ -64,9 +64,9 @@ foreach ($dir in $directories) {
 Write-Host "📦 检查安装包..." -ForegroundColor Cyan
 
 $packages = @{
-    "nodejs" = "$InstallPath\packages\nodejs-v22.12.2-x64.msi"
-    "postgresql" = "$InstallPath\packages\postgresql-16.1.1-windows-x64.exe"
-    "meilisearch" = "$InstallPath\packages\meilisearch-v1.8.0-windows-amd64.exe"
+    "nodejs" = "$InstallPath\packages\nodejs-v22.22.0-x64.msi"
+    "postgresql" = "$InstallPath\packages\postgresql-16.11-2-windows-x64.exe"
+    "meilisearch" = "$InstallPath\packages\meilisearch-windows-amd64.exe"
 }
 
 $packageCheck = $true
@@ -182,7 +182,7 @@ Write-Host "🔐 生成SSL证书..." -ForegroundColor Cyan
 $certPath = "$InstallPath\config\server.crt"
 $keyPath = "$InstallPath\config\server.key"
 
-# 生成自签名证书
+# 生成自签名证书 (PostgreSQL 16.11.2 SSL要求)
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
     -keyout $keyPath `
     -out $certPath `
