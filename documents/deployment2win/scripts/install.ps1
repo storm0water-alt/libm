@@ -1,376 +1,229 @@
-# 档案管理系统 - 一键安装脚本
+# Archive Management System - Installation Script (PowerShell)
 
-<#
-.SYNOPSIS
-    档案管理系统极简Windows原生部署 - 一键安装脚本
-.DESCRIPTION
-    自动安装PostgreSQL、Meilisearch、Node.js应用，配置为Windows服务
-.PARAMETER InstallPath
-    安装路径，默认为当前目录
-.PARAMETER ConfigFile
-    配置文件路径，默认为当前目录下的config.json
-.EXAMPLE
-    .\install.ps1
-    .\install.ps1 -InstallPath "D:\ArchiveManagement"
-    .\install.ps1 -ConfigFile "D:\CustomConfig\config.json"
-#>
+$ErrorActionPreference = "Stop"
 
-param(
-    [string]$InstallPath = (Get-Location).Path,
-    [string]$ConfigFile = "$InstallPath\config\config.json"
-)
-
-# 检查管理员权限
-function Test-Administrator {
-    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-Write-Host "🚀 档案管理系统 - 一键安装脚本" -ForegroundColor Green
-Write-Host "==================================" -ForegroundColor Yellow
-
-# 1. 环境检查
-if (-not (Test-Administrator)) {
-    Write-Host "❌ 错误: 需要管理员权限运行此脚本" -ForegroundColor Red
-    Write-Host "请右键点击PowerShell选择'以管理员身份运行'" -ForegroundColor Yellow
-    exit 1
-}
-
-Write-Host "✅ 管理员权限检查通过" -ForegroundColor Green
-
-# 2. 创建目录结构
-Write-Host "📁 创建目录结构..." -ForegroundColor Cyan
-$directories = @(
-    "$InstallPath\packages",
-    "$InstallPath\config",
-    "$InstallPath\services",
-    "$InstallPath\scripts",
-    "$InstallPath\data\database",
-    "$InstallPath\data\archives",
-    "$InstallPath\logs\app",
-    "$InstallPath\logs\database",
-    "$InstallPath\logs\meilisearch"
-)
-
-foreach ($dir in $directories) {
-    if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-        Write-Host "  ✅ 创建: $dir" -ForegroundColor Gray
-    }
-}
-
-# 3. 检查安装包
-Write-Host "📦 检查安装包..." -ForegroundColor Cyan
-
-$packages = @{
-    "nodejs" = "$InstallPath\packages\nodejs-v22.22.0-x64.msi"
-    "postgresql" = "$InstallPath\packages\postgresql-16.11-2-windows-x64.exe"
-    "meilisearch" = "$InstallPath\packages\meilisearch-windows-amd64.exe"
-}
-
-$packageCheck = $true
-foreach ($pkg in $packages.GetEnumerator()) {
-    if (-not (Test-Path $pkg.Value)) {
-        Write-Host "  ❌ 缺失: $($pkg.Key) - $($pkg.Value)" -ForegroundColor Red
-        $packageCheck = $false
-    } else {
-        Write-Host "  ✅ 找到: $($pkg.Key)" -ForegroundColor Gray
-    }
-}
-
-if (-not $packageCheck) {
-    Write-Host ""
-    Write-Host "❌ 错误: 缺少必要的安装包" -ForegroundColor Red
-    Write-Host "请将以下文件放置在 packages\ 目录中:" -ForegroundColor Yellow
-    foreach ($pkg in $packages.GetEnumerator()) {
-        Write-Host "  - $($pkg.Value)" -ForegroundColor Gray
-    }
-    exit 1
-}
-
-# 4. 创建配置文件
-Write-Host "⚙️ 创建配置文件..." -ForegroundColor Cyan
-
-# 创建 .env 文件
-$envContent = @"
-# ===================================
-# 数据库配置 (内网环境 - SSL已禁用)
-# ===================================
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=archive_management
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=secure_password_$(Get-Date -Format 'yyyyMMddHHmm')
-POSTGRES_SSL_MODE=disable
-
-# ===================================
-# Meilisearch配置
-# ===================================
-MEILISEARCH_HOST=localhost
-MEILISEARCH_PORT=7700
-MEILISEARCH_MASTER_KEY=search_master_key_$(Get-Date -Format 'yyyyMMddHHmm')
-
-# ===================================
-# 应用配置
-# ===================================
-NEXTAUTH_SECRET=nextauth_secret_$(Get-Date -Format 'yyyyMMddHHmm')
-NEXTAUTH_URL=http://localhost:3000
-APP_PORT=3000
-
-# ===================================
-# 存储配置
-# ===================================
-ARCHIVE_STORAGE_PATH=$InstallPath\data\archives
-BACKUP_PATH=D:\ArchiveBackups
-LOG_PATH=$InstallPath\logs
-
-# ===================================
-# 服务配置
-# ===================================
-PM2_LOG_LEVEL=info
-SERVICE_RESTART_DELAY=30
-HEALTH_CHECK_INTERVAL=60
-"@
-
-$envFile = "$InstallPath\.env"
-$envContent | Out-File -FilePath $envFile -Encoding UTF8
-Write-Host "  ✅ 创建: .env" -ForegroundColor Gray
-
-# 创建 config.json 文件
-$configContent = @{
-    database = @{
-        host = "localhost"
-        port = 5432
-        database = "archive_management"
-        user = "postgres"
-        ssl = @{
-            enabled = $false
-        }
-    }
-    meilisearch = @{
-        host = "localhost"
-        port = 7700
-        masterKey = "search_master_key_$(Get-Date -Format 'yyyyMMddHHmm')"
-    }
-    archive = @{
-        port = 3000
-        storagePath = "$InstallPath\data\archives"
-        tempPath = "D:\ArchiveTemp"
-    }
-    logging = @{
-        baseDir = "$InstallPath\logs"
-        maxFileSize = "100MB"
-        rotatePolicy = "daily"
-        retentionDays = 30
-        importantLogFile = "critical-errors.log"
-    }
-    services = @{
-        restartDelay = 30
-        healthCheckInterval = 60
-        startupTimeout = 300
-    }
-}
-
-$configContent | ConvertTo-Json -Depth 4 | Out-File -FilePath $ConfigFile -Encoding UTF8
-Write-Host "  ✅ 创建: config.json" -ForegroundColor Gray
-
-# 5. 配置完成 (内网环境 - SSL已禁用)
-Write-Host "🔓 配置数据库为非SSL模式..." -ForegroundColor Cyan
-
-Write-Host "  ✅ 数据库配置: 非SSL模式 (内网环境)" -ForegroundColor Gray
-
-# 6. 安装PostgreSQL
-Write-Host "🐘 安装PostgreSQL..." -ForegroundColor Cyan
-
-$postgresInstaller = $packages.postgresql
-$postgresInstallArgs = @(
-    "--mode", "unattended",
-    "--unattendedmodeui", "none",
-    "--superpassword", "postgres",
-    "--servicename", "PostgreSQL",
-    "--servicepassword", "postgres_$(Get-Date -Format 'yyyyMMddHHmm')",
-    "--datadir", "$InstallPath\data\database",
-    "--servicestartup", "automatic"
-)
-
-Start-Process -FilePath $postgresInstaller -ArgumentList $postgresInstallArgs -Wait
-Write-Host "  ✅ PostgreSQL安装完成" -ForegroundColor Gray
-
-# 7. 安装Meilisearch
-Write-Host "🔍 安装Meilisearch..." -ForegroundColor Cyan
-
-$meiliInstaller = $packages.meilisearch
-$meiliInstallDir = "C:\Program Files\Meilisearch"
-
-if (-not (Test-Path $meiliInstallDir)) {
-    New-Item -ItemType Directory -Path $meiliInstallDir -Force | Out-Null
-}
-
-Copy-Item $meiliInstaller $meiliInstallDir -Force
-Write-Host "  ✅ Meilisearch安装完成" -ForegroundColor Gray
-
-# 8. 安装Node.js
-Write-Host "💚 安装Node.js..." -ForegroundColor Cyan
-
-$nodeInstaller = $packages.nodejs
-$nodeInstallArgs = @(
-    "/quiet",
-    "/norestart",
-    "/norestart",
-    "/addlocal"
-)
-
-Start-Process -FilePath $nodeInstaller -ArgumentList $nodeInstallArgs -Wait
-Write-Host "  ✅ Node.js安装完成" -ForegroundColor Gray
-
-# 9. 数据库初始化
-Write-Host "🗄️ 初始化数据库..." -ForegroundColor Cyan
-
-# 等待PostgreSQL服务启动
-Write-Host "  ⏳ 等待PostgreSQL服务启动..." -ForegroundColor Yellow
-Start-Sleep -Seconds 15
-
-# 检查数据库连接
-$maxRetries = 10
-$retryCount = 0
-$dbConnected = $false
-
-while ($retryCount -lt $maxRetries -and -not $dbConnected) {
-    try {
-        $testResult = & "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d archive_management -c "SELECT 1;" -h localhost -p 5432 -q 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $dbConnected = $true
-            Write-Host "  ✅ 数据库连接成功" -ForegroundColor Green
-        } else {
-            Write-Host "  ⚠️ 数据库连接失败，重试 $retryCount/$maxRetries" -ForegroundColor Yellow
-        }
-    } catch {
-        Write-Host "  ❌ 数据库连接异常: $($_)" -ForegroundColor Red
-    }
-    
-    $retryCount++
-    Start-Sleep -Seconds 3
-}
-
-if (-not $dbConnected) {
-    Write-Host "  ❌ 数据库连接失败，跳过初始化" -ForegroundColor Red
-} else {
-    # 执行数据库初始化
-    try {
-        $initScript = "$InstallPath\init-data\init-database.sql"
-        if (Test-Path $initScript) {
-            Write-Host "  🚀 执行数据库初始化脚本..." -ForegroundColor Green
-            $initResult = & "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d archive_management -f $initScript -h localhost -p 5432 2>$null
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "  ✅ 数据库初始化完成" -ForegroundColor Green
-            } else {
-                Write-Host "  ❌ 数据库初始化失败" -ForegroundColor Red
-            }
-        } else {
-            Write-Host "  ⚠️ 初始化脚本不存在，跳过数据库初始化" -ForegroundColor Yellow
-        }
-    } catch {
-        Write-Host "  ❌ 数据库初始化异常: $($_)" -ForegroundColor Red
-    }
-}
-
-# 10. 创建Windows服务
-Write-Host "⚙️ 创建Windows服务..." -ForegroundColor Cyan
-
-# PostgreSQL服务配置
-$postgresServiceConfig = @{
-    name = "PostgreSQL"
-    displayName = "PostgreSQL Database Service"
-    description = "PostgreSQL database server for archive management"
-    binaryPath = "C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe"
-    configPath = "$InstallPath\data\database\postgresql.conf"
-    dataPath = "$InstallPath\data\database"
-    logPath = "$InstallPath\logs\database\postgresql.log"
-}
-
-$postgresServiceConfig | ConvertTo-Json -Depth 4 | Out-File "$InstallPath\services\postgresql-service.json" -Encoding UTF8
-
-# Meilisearch服务配置
-$meiliServiceConfig = @{
-    name = "Meilisearch"
-    displayName = "Archive Search Service"
-    description = "Meilisearch full-text search engine"
-    binaryPath = "C:\Program Files\Meilisearch\meilisearch.exe"
-    configPath = "$InstallPath\config\meilisearch.toml"
-    dataPath = "$InstallPath\data\meilisearch"
-    logPath = "$InstallPath\logs\meilisearch\meilisearch.log"
-}
-
-$meiliServiceConfig | ConvertTo-Json -Depth 4 | Out-File "$InstallPath\services\meilisearch-service.json" -Encoding UTF8
-
-# 创建PM2配置
-$pm2Config = @{
-    apps = @(
-        @{
-            name = "archive-management"
-            script = "$InstallPath\app\server.js"
-            cwd = "$InstallPath\app"
-            instances = 1
-            autorestart = $true
-            max_memory_restart = "1G"
-            min_uptime = "10s"
-            error_file = "$InstallPath\logs\pm2-error.log"
-            out_file = "$InstallPath\logs\pm2-out.log"
-            log_file = "$InstallPath\logs\pm2-combined.log"
-            env = @{
-                NODE_ENV = "production"
-                PORT = "3000"
-                DATABASE_URL = "postgresql://postgres:admin123@localhost:5432/archive_management?sslmode=require"
-                MEILISEARCH_URL = "http://localhost:7700"
-                MEILISEARCH_MASTER_KEY = "search_master_key_$(Get-Date -Format 'yyyyMMddHHmm')"
-                NEXTAUTH_SECRET = "nextauth_secret_$(Get-Date -Format 'yyyyMMddHHmm')"
-                NEXTAUTH_URL = "http://localhost:3000"
-            }
-        }
-    )
-}
-
-$pm2Config | ConvertTo-Json -Depth 4 | Out-File "$InstallPath\config\ecosystem.config.js" -Encoding UTF8
-
-Write-Host "  ✅ 服务配置完成" -ForegroundColor Gray
-
-# 10. 启动服务
-Write-Host "🚀 启动服务..." -ForegroundColor Cyan
-
-# 启动PostgreSQL
-& "C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe" start -D "$InstallPath\data\database" -l "$InstallPath\logs\database\postgresql.log"
-
-# 等待PostgreSQL启动
-Write-Host "  ⏳ 等待PostgreSQL启动..." -ForegroundColor Yellow
-Start-Sleep -Seconds 10
-
-# 启动Meilisearch
-& "C:\Program Files\Meilisearch\meilisearch.exe" --master-key="search_master_key_$(Get-Date -Format 'yyyyMMddHHmm')" --db-path="$InstallPath\data\meilisearch" --http-addr="localhost:7700"
-
-# 等待Meilisearch启动
-Write-Host "  ⏳ 等待Meilisearch启动..." -ForegroundColor Yellow
-Start-Sleep -Seconds 5
-
-# 启动Node.js应用 (通过PM2)
-$envPath = "$InstallPath\.env"
-$pm2Path = "$env:APPDATA\npm2"
-if (Test-Path $pm2Path) {
-    & "$pm2Path\pm2.cmd" start "$InstallPath\config\ecosystem.config.js"
-} else {
-    Write-Host "  ⚠️ 警告: PM2未找到，请手动启动Node.js应用" -ForegroundColor Yellow
-    Write-Host "  命令: cd `"$InstallPath\app` && set NODE_ENV=production && set DATABASE_URL=postgresql://postgres:secure_password_$(Get-Date -Format 'yyyyMMddHHmm')@localhost:5432/archive_management?sslmode=require && node server.js" -ForegroundColor Gray
-}
-
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "Archive Management System - Installation" -ForegroundColor Cyan
+Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "🎉 安装完成！" -ForegroundColor Green
-Write-Host "==================================" -ForegroundColor Yellow
-Write-Host "📁 安装路径: $InstallPath" -ForegroundColor Gray
-Write-Host "⚙️ 配置文件: $ConfigFile" -ForegroundColor Gray
-Write-Host "🌐 应用访问: http://localhost:3000" -ForegroundColor Gray
-Write-Host "🔍 搜索服务: http://localhost:7700" -ForegroundColor Gray
-Write-Host "📊 服务管理: 运行 services\start-services.ps1" -ForegroundColor Gray
-Write-Host "📋 服务状态: 运行 services\check-status.ps1" -ForegroundColor Gray
-Write-Host "📝 日志位置: $InstallPath\logs" -ForegroundColor Gray
+
+# Get script directory
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$InstallPath = Split-Path -Parent $ScriptDir
+$PackagesPath = Join-Path $InstallPath "packages"
+
+# Ensure packages directory exists
+if (-not (Test-Path $PackagesPath)) {
+    New-Item -ItemType Directory -Path $PackagesPath -Force | Out-Null
+}
+
+# Step 0: Select installation drive
+Write-Host "[0/8] Select installation drive..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Available drives:" -ForegroundColor Gray
+
+# Get available drives
+$Drives = Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Name
+foreach ($Drive in $Drives) {
+    Write-Host "  $Drive`:" -ForegroundColor Gray
+}
+Write-Host ""
+
+$InstallDrive = Read-Host "Enter installation drive (e.g. D)"
+if ([string]::IsNullOrWhiteSpace($InstallDrive)) {
+    $InstallDrive = "D"
+}
+$ArchiveHome = "${InstallDrive}:\ArchiveManagement"
+Write-Host "  - Installation path: $ArchiveHome" -ForegroundColor Green
+
+# Step 1: Check installation packages
+Write-Host ""
+Write-Host "[1/8] Checking installation packages..." -ForegroundColor Yellow
+
+$Missing = $false
+$PGExe = Get-ChildItem -Path $PackagesPath -Filter "postgresql-*-windows-x64.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $PGExe) {
+    Write-Host "  - PostgreSQL: NOT FOUND" -ForegroundColor Red
+    $Missing = $true
+}
+$NodeExe = Get-ChildItem -Path $PackagesPath -Filter "nodejs-*-x64.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $NodeExe) {
+    Write-Host "  - Node.js: NOT FOUND" -ForegroundColor Red
+    $Missing = $true
+}
+$MeiliExe = Get-ChildItem -Path $PackagesPath -Filter "meilisearch-windows-amd64.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $MeiliExe) {
+    Write-Host "  - Meilisearch: NOT FOUND" -ForegroundColor Red
+    $Missing = $true
+}
+
+if ($Missing) {
+    Write-Host ""
+    Write-Host "Please place the following files in $PackagesPath :" -ForegroundColor Yellow
+    Write-Host "  - postgresql-16.11-2-windows-x64.exe"
+    Write-Host "  - nodejs-v22.22.0-x64.msi"
+    Write-Host "  - meilisearch-windows-amd64.exe"
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+Write-Host "  - All packages ready" -ForegroundColor Green
+
+# Step 2: Create directory structure
+Write-Host ""
+Write-Host "[2/8] Creating directory structure..." -ForegroundColor Yellow
+
+$Dirs = @(
+    (Join-Path $ArchiveHome "data\database"),
+    (Join-Path $ArchiveHome "data\archives"),
+    (Join-Path $ArchiveHome "data\meilisearch"),
+    (Join-Path $ArchiveHome "logs"),
+    (Join-Path $ArchiveHome "config"),
+    (Join-Path $ArchiveHome "scripts"),
+    (Join-Path $ArchiveHome "services"),
+    (Join-Path $ArchiveHome "init-data"),
+    (Join-Path $ArchiveHome "packages")
+)
+
+foreach ($Dir in $Dirs) {
+    if (-not (Test-Path $Dir)) {
+        New-Item -ItemType Directory -Path $Dir -Force | Out-Null
+    }
+}
+Write-Host "  - Directory structure created" -ForegroundColor Green
+
+# Step 3: Generate installation configuration
+Write-Host ""
+Write-Host "[3/8] Generating installation configuration..." -ForegroundColor Yellow
+
+$Timestamp = Get-Date -Format "yyyyMMddHHmmss"
+$PGPass = "pg_$Timestamp"
+$MeiliKey = "meili_$Timestamp"
+$AuthKey = "auth_$Timestamp"
+
+# Generate config.ini
+$ConfigIni = @"
+ARCHIVE_HOME=$ArchiveHome
+PG_DATA_DIR=$ArchiveHome\data\database
+MEILI_DATA_DIR=$ArchiveHome\data\meilisearch
+"@
+$ConfigIniPath = Join-Path $InstallPath "config.ini"
+$ConfigIni | Out-File -FilePath $ConfigIniPath -Encoding UTF8
+
+# Generate .env file
+$EnvTemplatePath = Join-Path $InstallPath "config\.env.template"
+$EnvPath = Join-Path $InstallPath "config\.env"
+$EnvContent = Get-Content -Path $EnvTemplatePath -Raw
+$EnvContent = $EnvContent.Replace("CHANGE_ME_PASSWORD", $PGPass)
+$EnvContent = $EnvContent.Replace("CHANGE_ME_KEY", $MeiliKey)
+$EnvContent = $EnvContent.Replace("CHANGE_ME_SECRET", $AuthKey)
+$EnvContent = $EnvContent.Replace("%ARCHIVE_HOME%", $ArchiveHome)
+$EnvContent | Out-File -FilePath $EnvPath -Encoding UTF8
+
+Write-Host "  - config.ini generated" -ForegroundColor Green
+Write-Host "  - .env generated" -ForegroundColor Green
+Write-Host "  - Password: $PGPass" -ForegroundColor Gray
+
+# Step 4: Install PostgreSQL
+Write-Host ""
+Write-Host "[4/8] Installing PostgreSQL (C:\Program Files\PostgreSQL\16)..." -ForegroundColor Yellow
+
+$PGInstallArgs = @(
+    "--mode", "unattended",
+    "--superpassword", $PGPass,
+    "--servicename", "PostgreSQL",
+    "--servicepassword", $PGPass,
+    "--datadir", "$ArchiveHome\data\database"
+)
+Start-Process -FilePath $PGExe.FullName -ArgumentList $PGInstallArgs -Wait -NoNewWindow
+
+# Verify PostgreSQL installation
+$PGService = Get-Service -Name "PostgreSQL" -ErrorAction SilentlyContinue
+if ($PGService -and $PGService.Status -eq "Running") {
+    Write-Host "  - PostgreSQL installed" -ForegroundColor Green
+} else {
+    Write-Host "  - PostgreSQL installation failed or service not running" -ForegroundColor Red
+    Write-Host "  Please check the installation manually" -ForegroundColor Yellow
+}
+
+# Step 5: Install Node.js
+Write-Host ""
+Write-Host "[5/8] Installing Node.js (C:\Program Files\nodejs)..." -ForegroundColor Yellow
+
+$NodeArgs = @("/i", $NodeExe.FullName, "/quiet", "/norestart")
+Start-Process -FilePath "msiexec.exe" -ArgumentList $NodeArgs -Wait -NoNewWindow
+
+# Verify Node.js installation
+$NodePath = "C:\Program Files\nodejs\node.exe"
+if (Test-Path $NodePath) {
+    Write-Host "  - Node.js installed" -ForegroundColor Green
+} else {
+    Write-Host "  - Node.js installation failed" -ForegroundColor Red
+    exit 1
+}
+
+# Step 6: Install PM2
+Write-Host ""
+Write-Host "[6/8] Installing PM2..." -ForegroundColor Yellow
+
+$npmPath = "C:\Program Files\nodejs\npm.cmd"
+$pm2Path = "C:\Program Files\nodejs\pm2.cmd"
+
+if (-not (Test-Path $pm2Path)) {
+    & "$npmPath" config set loglevel error 2>&1 | Out-Null
+    & "$npmPath" install -g pm2 2>&1 | Out-Null
+}
+Write-Host "  - PM2 installed" -ForegroundColor Green
+
+# Step 7: Install Meilisearch
+Write-Host ""
+Write-Host "[7/8] Installing Meilisearch (C:\Program Files\Meilisearch)..." -ForegroundColor Yellow
+
+$MeiliDir = "C:\Program Files\Meilisearch"
+if (-not (Test-Path $MeiliDir)) {
+    New-Item -ItemType Directory -Path $MeiliDir -Force | Out-Null
+}
+Copy-Item -Path $MeiliExe.FullName -Destination (Join-Path $MeiliDir "meilisearch.exe") -Force
+
+# Verify Meilisearch installation
+$MeiliPath = Join-Path $MeiliDir "meilisearch.exe"
+if (Test-Path $MeiliPath) {
+    Write-Host "  - Meilisearch installed" -ForegroundColor Green
+} else {
+    Write-Host "  - Meilisearch installation failed" -ForegroundColor Red
+    exit 1
+}
+
+# Step 8: Copy application configuration to installation directory
+Write-Host ""
+Write-Host "[8/8] Copying application configuration..." -ForegroundColor Yellow
+
+if ($InstallPath -ne $ArchiveHome) {
+    $ConfigDir = Join-Path $InstallPath "config"
+    $ScriptsDir = Join-Path $InstallPath "scripts"
+    $ServicesDir = Join-Path $InstallPath "services"
+    $InitDataDir = Join-Path $InstallPath "init-data"
+
+    Copy-Item -Path "$ConfigDir\*" -Destination (Join-Path $ArchiveHome "config") -Recurse -Force
+    Copy-Item -Path "$ScriptsDir\*.bat" -Destination (Join-Path $ArchiveHome "scripts") -Force
+    Copy-Item -Path "$ScriptsDir\*.ps1" -Destination (Join-Path $ArchiveHome "scripts") -Force
+    Copy-Item -Path "$ServicesDir\*.json" -Destination (Join-Path $ArchiveHome "services") -Force
+    Copy-Item -Path "$InitDataDir\*.sql" -Destination (Join-Path $ArchiveHome "init-data") -Force
+    Write-Host "  - Configuration copied to $ArchiveHome" -ForegroundColor Green
+} else {
+    Write-Host "  - Installation path same as source, skipping copy" -ForegroundColor Gray
+}
+
+# Completion
+Write-Host ""
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "Installation Complete!" -ForegroundColor Cyan
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Installation path: $ArchiveHome" -ForegroundColor Gray
+Write-Host "Default account: admin / admin123" -ForegroundColor Gray
+Write-Host "Application: http://localhost:3000" -ForegroundColor Gray
+Write-Host "Search service: http://localhost:7700" -ForegroundColor Gray
+Write-Host ""
+Write-Host "Please run $ArchiveHome\scripts\start.bat to start services" -ForegroundColor Yellow
 Write-Host ""

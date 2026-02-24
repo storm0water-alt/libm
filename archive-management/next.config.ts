@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+
   /* config options here */
 
   // 图片优化配置（本地文件系统）

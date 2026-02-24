@@ -1,472 +1,383 @@
-# 档案管理系统 - 极简Windows原生部署指南
+# 档案管理系统 - Windows 离线部署
 
-## 🎯 部署目标
+## 环境要求
 
-**技术栈**：
-- PostgreSQL 16.11.2 (内网环境，SSL已禁用)
-- Node.js v22.22.0 (生产就绪版本)  
-- Meilisearch Latest (Windows 原生版本)
-- PM2 进程管理器
+| 项目 | 要求 |
+|------|------|
+| 操作系统 | Windows Server 2019+ / Windows 10+ |
+| 内存 | 8GB+ |
+| 磁盘 | 10GB+ 可用空间 |
+| 权限 | 管理员权限 |
 
-**部署方式**：Windows原生服务，极简配置，离线友好
+## 技术栈
 
----
+- **Next.js 15** - Web 应用框架 (standalone 模式)
+- **Node.js 22** - 运行时
+- **PostgreSQL 16** - 数据库
+- **Meilisearch** - 全文搜索
+- **PM2** - 进程管理
 
-## 📋 目录结构
+## 安装位置说明
+
+| 组件 | 默认位置 | 说明 |
+|------|----------|------|
+| 应用数据 | **可自定义** (D:/E:/F:...) | 安装时选择盘符 |
+| PostgreSQL | C:\Program Files\PostgreSQL\16 | 固定 C 盘 |
+| Node.js | C:\Program Files\nodejs | 固定 C 盘 |
+| Meilisearch | C:\Program Files\Meilisearch | 固定 C 盘 |
+
+## 目录结构
 
 ```
-D:\
-├── ArchiveManagement\          # 应用根目录
-│   ├── app\               # 应用代码 (copy from archive-management/)
-│   ├── packages\           # 离线安装包
-│   │   ├── nodejs-v22.22.0-x64.msi
-│   │   ├── postgresql-16.11-2-windows-x64.exe
-│   │   └── meilisearch-windows-amd64.exe
-│   ├── config\             # 配置文件
-│   │   ├── config.json
-│   │   └── .env
-│   ├── services\           # Windows服务配置
-│   ├── scripts\            # 运维脚本
-│   ├── data\              # 数据存储
-│   │   ├── database\
-│   │   └── archives\
-│   └── logs\              # 统一日志
-├── ArchiveBackups\         # 数据库备份
-└── ArchiveTemp\           # 临时文件
+D:\ArchiveManagement\          (或 E:\, F:\ 等)
+├── app/                    # Next.js 应用
+│   ├── server.js           # 启动入口
+│   ├── .next/              # Next.js 构建产物
+│   ├── public/             # 静态文件
+│   └── node_modules/       # 依赖
+├── config/                 # 配置文件
+│   ├── .env                # 环境变量
+│   ├── config.ini          # 安装路径配置
+│   └── config.json
+├── scripts/                # 运维脚本
+│   ├── install.bat         # 一键安装
+│   ├── start.bat           # 启动服务
+│   ├── stop.bat            # 停止服务
+│   ├── backup.bat          # 数据库备份
+│   └── upgrade.bat         # 版本升级
+├── services/               # 服务配置
+├── init-data/              # 数据库初始化脚本
+├── data/                   # 数据存储
+│   ├── database/           # PostgreSQL 数据
+│   ├── archives/           # 档案文件
+│   └── meilisearch/        # 搜索引擎数据
+├── logs/                   # 日志目录
+└── packages/               # 离线安装包
+    ├── postgresql-16.11-2-windows-x64.exe
+    ├── nodejs-v22.22.0-x64.msi
+    └── meilisearch-windows-amd64.exe
 ```
 
----
+## 快速部署
 
-## 🚀 一键安装
+### 1. 准备安装包
 
-### 前置条件
+将以下文件放入 `packages/` 目录：
 
-1. Windows Server 2019+ 或 Windows 10+ (管理员权限)
-2. 至少 8GB RAM，建议 SSD 硬盘
-3. 确保所有下载包完整性 (SHA-256校验)
+| 文件 | 说明 |
+|------|------|
+| `postgresql-16.11-2-windows-x64.exe` | PostgreSQL 安装程序 |
+| `nodejs-v22.22.0-x64.msi` | Node.js 安装程序 |
+| `meilisearch-windows-amd64.exe` | Meilisearch 可执行文件 |
 
-### 安装步骤
+### 2. 执行安装
 
-```powershell
-# 1. 以管理员身份运行 PowerShell
-# 2. 进入部署目录
+以 **管理员身份** 运行 PowerShell 或 CMD：
+
+```cmd
 cd D:\ArchiveManagement
-# 3. 执行一键安装
-.\scripts\install.ps1
+.\scripts\install.bat
 ```
 
----
+安装过程：
+- 输入安装盘符 (D:/E:/F:...)，默认为 D:
+- 自动创建目录结构
+- 静默安装 PostgreSQL、Node.js、Meilisearch 到 C 盘
+- 生成随机密码和密钥
+- 初始化数据库
 
-## ⚙️ 配置文件
+> **注意**: `install.bat` 内部调用 `install.ps1` 执行安装
 
-### .env.template
+### 3. 启动服务
 
-```env
-# ===================================
-# 数据库配置
-# ===================================
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=archive_management
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_secure_password_here
-
-# SSL配置 (内网环境 - 已禁用)
-POSTGRES_SSL_MODE=disable
-
-# ===================================
-# Meilisearch配置  
-# ===================================
-MEILISEARCH_HOST=localhost
-MEILISEARCH_PORT=7700
-MEILISEARCH_MASTER_KEY=your_meilisearch_key_here
-
-# ===================================
-# 应用配置
-# ===================================
-NEXTAUTH_SECRET=your_nextauth_secret_here
-NEXTAUTH_URL=http://localhost:3000
-APP_PORT=3000
-
-# ===================================
-# 存储配置
-# ===================================
-ARCHIVE_STORAGE_PATH=D:\ArchiveManagement\data\archives
-BACKUP_PATH=D:\ArchiveBackups
-LOG_PATH=C:\ArchiveLogs
-
-# ===================================
-# 服务配置
-# ===================================
-PM2_LOG_LEVEL=info
-SERVICE_RESTART_DELAY=30
+```cmd
+.\scripts\start.bat
 ```
 
-### config.json
+### 4. 访问应用
 
-```json
-{
-  "database": {
-    "host": "localhost",
-    "port": 5432,
-    "database": "archive_management",
-    "ssl": {
-      "enabled": true,
-      "certPath": "D:\\ArchiveManagement\\config\\server.crt",
-      "keyPath": "D:\\ArchiveManagement\\config\\server.key"
-    }
-  },
-  "meilisearch": {
-    "host": "localhost",
-    "port": 7700,
-    "masterKey": "your_meilisearch_key_here"
-  },
-  "archive": {
-    "port": 3000,
-    "storagePath": "D:\\ArchiveManagement\\data\\archives",
-    "tempPath": "D:\\ArchiveTemp"
-  },
-  "logging": {
-    "baseDir": "C:\\ArchiveLogs",
-    "maxFileSize": "100MB",
-    "rotatePolicy": "daily",
-    "retentionDays": 30,
-    "importantLogFile": "critical-errors.log"
-  },
-  "services": {
-    "restartDelay": 30,
-    "healthCheckInterval": 60,
-    "startupTimeout": 300
-  }
-}
+| 服务 | 地址 |
+|------|------|
+| Web 应用 | http://localhost:3000 |
+| 搜索服务 | http://localhost:7700 |
+| 管理员账号 | admin / admin123 |
+
+## 服务管理
+
+| 命令 | 说明 |
+|------|------|
+| `start.bat` | 启动所有服务 (PG → Meilisearch → 应用) |
+| `stop.bat` | 停止所有服务 |
+| `backup.bat` | 备份数据库到 `[盘符]:\ArchiveBackups` |
+| `upgrade.bat` | 版本升级 |
+
+## 数据库备份
+
+备份文件保存到 `[安装盘符]:\ArchiveBackups`：
+
+```cmd
+.\scripts\backup.bat
 ```
 
----
+## 版本升级
 
-## 📦 服务管理
-
-### 启动所有服务
-
-```powershell
-.\scripts\start-services.ps1
+```cmd
+.\scripts\upgrade.bat
 ```
 
-### 停止所有服务
+升级步骤：
+1. 停止服务并自动备份数据库
+2. 备份当前配置
+3. 解压新版本覆盖文件
+4. 恢复配置后启动服务
 
-```powershell
-.\scripts\stop-services.ps1
+## 多盘符支持
+
+安装时可以选择任意盘符作为应用目录：
+
+```cmd
+请输入安装盘符 (如 D): E
+
+安装路径: E:\ArchiveManagement
 ```
 
-### 检查服务状态
+所有脚本会自动读取 `config\config.ini` 中的安装路径配置，无需手动修改。
 
-```powershell
-.\scripts\check-status.ps1
-```
+## 故障排查
 
-### 数据库备份
+### 服务无法启动
 
-```powershell
-# 手动备份
-.\scripts\backup-database.ps1
-
-# 检查备份状态
-Get-ChildItem "D:\ArchiveBackups" | Sort-Object LastWriteTime -Descending | Select-Object -First 5
-```
-
-### 日志轮转
-
-```powershell
-# 手动日志轮转
-.\scripts\rotate-logs.ps1
-
-# 查看重要错误日志
-Get-Content "C:\ArchiveLogs\critical-errors.log" -Tail 50
-```
-
----
-
-## 🔧 服务账户
-
-### PostgreSQL 服务
-- **运行账户**: 当前用户 (安装时用户)
-- **服务名称**: PostgreSQL
-- **显示名称**: PostgreSQL Database Service
-
-### Meilisearch 服务  
-- **运行账户**: 当前用户 (安装时用户)
-- **服务名称**: Meilisearch
-- **显示名称**: Archive Search Service
-
-### Archive Management 应用
-- **运行账户**: 当前用户 (安装时用户)
-- **PM2进程名**: archive-management
-- **服务名称**: ArchiveManagement
-
----
-
-## 📋 日志管理
-
-### 日志文件结构
-
-```
-C:\ArchiveLogs\
-├── app\
-│   ├── app-2026-01-31.log
-│   └── app-2026-02-01.log
-├── database\
-│   ├── database-2026-01-31.log
-│   └── database-2026-02-01.log
-├── meilisearch\
-│   ├── meilisearch-2026-01-31.log
-│   └── meilisearch-2026-02-01.log
-└── critical-errors.log          # 重要错误日志
-```
-
-### 日志轮转规则
-- **大小限制**: 100MB
-- **轮转策略**: 每日00:00轮转
-- **保留期限**: 30天
-- **重要日志**: 关键错误单独记录到 `critical-errors.log`
-
----
-
-## 💾 备份策略
-
-### 智能备份逻辑
-1. **变更检测**: 检查数据库最后变更时间戳
-2. **条件备份**: 只有数据变更时才执行备份
-3. **文件管理**: 保留最近7个备份文件
-4. **命名规则**: `backup-YYYY-MM-DD-HHMM.sql`
-
-### 手动备份命令
-```powershell
-# 完整备份
-.\scripts\backup-database.ps1 --full
-
-# 增量备份 (如果支持)
-.\scripts\backup-database.ps1 --incremental
-```
-
----
-
-## 🛠 故障排查
-
-### 服务状态检查
-```powershell
-# 检查所有服务状态
-Get-Service -Name "PostgreSQL", "Meilisearch", "ArchiveManagement"
-
+```cmd
 # 检查端口占用
 netstat -an | findstr ":3000\|:5432\|:7700"
 
-# 检查进程状态
-tasklist | findstr "postgres\|meilisearch\|node"
+# 查看日志
+type D:\ArchiveManagement\logs\*.log
 ```
 
-### 常见问题解决
+### PostgreSQL 连接失败
 
-#### PostgreSQL 启动失败
+```cmd
+# 检查服务状态
+net start PostgreSQL
+
+# 手动启动
+"C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe" start -D "D:\ArchiveManagement\data\database"
+```
+
+### Node.js 应用启动失败
+
+```cmd
+# 使用 PM2 查看状态
+%APPDATA%\npm\pm2 status
+
+# 查看日志
+%APPDATA%\npm\pm2 logs archive-management
+
+# 手动运行测试
+cd D:\ArchiveManagement\app
+node server.js
+```
+
+### Meilisearch 无法启动
+
+```cmd
+# 检查可执行文件
+dir "C:\Program Files\Meilisearch\"
+
+# 查看日志
+type D:\ArchiveManagement\logs\meilisearch.log
+```
+
+## 端口说明
+
+| 端口 | 服务 | 说明 |
+|------|------|------|
+| 3000 | Next.js | Web 应用 |
+| 5432 | PostgreSQL | 数据库 |
+| 7700 | Meilisearch | 全文搜索 |
+
+## 首次安装后的目录说明
+
+首次运行 `install.bat` 后，系统会生成以下目录结构：
+
+```
+D:\ArchiveManagement\
+├── app/                      # ✅ 系统应用（可更新）
+│   ├── server.js             # 启动入口
+│   ├── .next/                # Next.js 构建产物
+│   ├── public/               # 静态文件
+│   └── node_modules/         # 依赖
+├── config/                   # ⚠️ 系统配置（必须保留）
+│   ├── .env                  # 数据库密码、密钥（重要！）
+│   ├── config.ini            # 安装路径配置（重要！）
+│   └── config.json           # 服务配置
+├── scripts/                  # ✅ 运维脚本（可更新）
+├── services/                 # ✅ 服务配置（可更新）
+├── init-data/                # ✅ 初始化脚本（可更新）
+├── data/                     # ⚠️ 用户数据（必须保留）
+│   ├── database/             # PostgreSQL 数据（核心数据！）
+│   ├── archives/             # 用户上传的 PDF 文件（核心数据！）
+│   └── meilisearch/          # 搜索索引（可重建）
+├── logs/                     # ⚠️ 日志（可保留）
+└── packages/                 # 安装包缓存（可删除）
+```
+
+### 关键：哪些必须保留？
+
+| 必须保留 | 说明 | 丢失后果 |
+|----------|------|----------|
+| `config/.env` | 数据库密码、密钥 | 无法连接数据库、应用无法启动 |
+| `config/config.ini` | 安装路径 | monitor.ps1 无法定位目录 |
+| `data/database/` | PostgreSQL 数据 | **所有业务数据丢失！** |
+| `data/archives/` | PDF 文件 | **用户档案文件丢失！** |
+
+### 哪些可以覆盖？
+
+| 可以覆盖 | 说明 |
+|----------|------|
+| `app/` | 应用代码和依赖 |
+| `scripts/` | 运维脚本 |
+| `services/` | 服务配置 |
+| `init-data/` | 初始化脚本 |
+| `logs/` | 日志文件（可选保留） |
+| `data/meilisearch/` | 搜索索引（可重建） |
+
+## 系统升级
+
+> ⚠️ **警告**：升级前必须备份 `data/` 目录！
+
+### 升级步骤
+
 ```powershell
-# 检查数据目录权限
-icacls "D:\ArchiveManagement\data\database"
+# 1. 停止服务
+cd D:\ArchiveManagement\scripts
+.\monitor.ps1 stop
 
-# 检查端口占用
-netstat -an | findstr ":5432"
+# 2. 备份用户数据（重要！）
+Copy-Item "D:\ArchiveManagement\data" "D:\ArchiveManagement\data-backup" -Recurse
 
-# 手动启动 (紧急)
-& "C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe" start -D "D:\ArchiveManagement\data\database"
+# 3. 解压新版本到临时目录
+Expand-Archive -Path "archive-management-vYYYYMMDDHHMMSS-offline.zip" -DestinationPath "D:\ArchiveManagement-new"
+
+# 4. 选择性覆盖（只更新应用代码）
+Copy-Item "D:\ArchiveManagement-new\app\server.js" "D:\ArchiveManagement\app\" -Force
+Copy-Item "D:\ArchiveManagement-new\app\.next" "D:\ArchiveManagement\app\" -Recurse -Force
+Copy-Item "D:\ArchiveManagement-new\app\package.json" "D:\ArchiveManagement\app\" -Force
+Copy-Item "D:\ArchiveManagement-new\app\ecosystem.config.js" "D:\ArchiveManagement\app\" -Force
+Copy-Item "D:\ArchiveManagement-new\scripts\*" "D:\ArchiveManagement\scripts\" -Force
+
+# 5. 验证 data 目录完整
+# 确保 D:\ArchiveManagement\data\ 下仍有 database/ 和 archives/
+
+# 6. 启动服务
+.\monitor.ps1 start
+
+# 7. 验证
+.\monitor.ps1 status
+.\monitor.ps1 health
 ```
 
-#### Node.js 应用启动失败
+### 快速升级命令
+
 ```powershell
-# 检查PM2状态
-pm2 status archive-management
+# 停止
+.\monitor.ps1 stop
 
-# 查看应用日志
-pm2 logs archive-management --lines 50
+# 备份 data 目录
+xcopy /E /I "data" "data-backup" 2>nul
 
-# 重启应用
-pm2 restart archive-management
+# 覆盖应用（不覆盖 config 和 data）
+xcopy /Y /S "..\新版本\app\*" "app\"
+xcopy /Y "..\新版本\scripts\*.ps1" "scripts\"
+xcopy /Y "..\新版本\scripts\*.bat" "scripts\"
+xcopy /Y "..\新版本\services\*.json" "services\"
+xcopy /Y "..\新版本\init-data\*.sql" "init-data\"
+
+# 启动
+.\monitor.ps1 start
 ```
 
-#### Meilisearch 启动失败
+### 升级检查清单
+
+- [ ] 停止服务
+- [ ] 备份 data 目录
+- [ ] 覆盖 app/ 目录
+- [ ] 覆盖 scripts/ 目录
+- [ ] **不要覆盖** config/
+- [ ] **不要覆盖** data/
+- [ ] 启动服务
+- [ ] 验证状态
+
+### 回滚步骤
+
+如果升级失败：
+
 ```powershell
-# 手动启动 (紧急)
-& "C:\Program Files\Meilisearch\meilisearch.exe" --master-key="your_key"
+# 1. 停止服务
+.\monitor.ps1 stop
 
-# 检查配置文件
-Get-Content "D:\ArchiveManagement\config\meilisearch.toml"
+# 2. 恢复备份
+rm -Recurse -Force data
+Rename-Item data-backup data
+
+# 3. 启动服务
+.\monitor.ps1 start
 ```
 
----
+## 打包内容说明
 
-## 📊 性能优化
+部署包 (`archive-management-vYYYYMMDDHHMMSS-offline.zip`) 包含以下内容：
 
-### PostgreSQL 优化
-```sql
--- 在数据库创建后执行
-ALTER SYSTEM SET shared_buffers = '256MB';
-ALTER SYSTEM SET effective_cache_size = '1GB';
-ALTER SYSTEM SET work_mem = '4MB';
-SELECT pg_reload_conf();
+| 目录/文件 | 是否包含 | 说明 |
+|-----------|----------|------|
+| `app/server.js` | ✅ | 应用入口 |
+| `app/.next/` | ✅ | Next.js 构建产物 |
+| `app/node_modules/` | ✅ | 依赖（包含 Windows Prisma 客户端） |
+| `app/public/` | ✅ | 静态资源 |
+| `app/ecosystem.config.js` | ✅ | PM2 配置 |
+| `config/config.json` | ✅ | 服务配置 |
+| `config/.env.template` | ✅ | 环境变量模板 |
+| `scripts/*.ps1` | ✅ | PowerShell 运维脚本 |
+| `scripts/*.bat` | ✅ | CMD 批处理脚本 |
+| `services/*.json` | ✅ | 服务配置 |
+| `init-data/*.sql` | ✅ | 数据库初始化脚本 |
+| `config/.env` | ❌ | **不包含**（安装时生成） |
+| `config/config.ini` | ❌ | **不包含**（安装时生成） |
+| `data/` | ❌ | **不包含**（用户数据） |
+| `logs/` | ❌ | **不包含**（运行时生成） |
+| `packages/` | ❌ | **不包含**（需手动放置安装包） |
+
+## 文件校验
+
+```cmd
+# 验证 SHA256
+sha256sum -c archive-management-vYYYYMMDDHHMMSS-offline.sha256
 ```
 
-### Node.js 优化
-```javascript
-// PM2 配置优化
-{
-  "max_memory_restart": "1G",
-  "min_uptime": "10s",
-  "error_file": "C:\\ArchiveLogs\\pm2-error.log",
-  "out_file": "C:\\ArchiveLogs\\pm2-out.log"
-}
+## 构建部署包 (macOS)
+
+```bash
+cd documents/deployment2win
+bash deploy.sh
+
+# 输出:
+# - output/archive-management-vYYYYMMDDHHMMSS-offline.zip
+# - output/archive-management-vYYYYMMDDHHMMSS-offline.sha256
+
+# 部署包大小约 30MB（包含 Windows Prisma 客户端）
 ```
 
----
+### 注意事项
 
-## 🔐 安全配置
-
-### SSL证书生成 (如果需要自签名证书)
-```powershell
-# 生成自签名证书 (开发环境)
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
-  -keyout "D:\ArchiveManagement\config\server.key" `
-  -out "D:\ArchiveManagement\config\server.crt" `
-  -subj "/C=CN/ST=State/L=City/O=Organization/CN=localhost"
-```
-
-### 目录权限设置
-```powershell
-# 设置最大权限 (开发环境)
-icacls "D:\ArchiveManagement" /grant "Everyone:(OI)(CI)F"
-
-# 生产环境权限 (按需设置)
-icacls "D:\ArchiveManagement\data" /grant "NT AUTHORITY\SYSTEM:(OI)(CI)F"
-```
-
----
-
-## 📈 监控和健康检查
-
-### 服务健康检查
-```powershell
-# 每60秒检查一次服务状态
-.\scripts\check-status.ps1 --interval 60
-
-# 生成健康报告
-.\scripts\check-status.ps1 --report > "D:\ArchiveManagement\health-report.json"
-```
-
-### 日志监控
-```powershell
-# 监控关键错误日志
-Get-Content "C:\ArchiveLogs\critical-errors.log" -Wait -Tail 10
-
-# 实时查看所有日志
-Get-ChildItem "C:\ArchiveLogs\*.log" | ForEach-Object {
-  Get-Content $_.FullName -Tail 5
-}
-```
-
----
-
-## 🔄 版本升级
-
-### 升级流程
-```powershell
-# 1. 备份当前数据
-.\scripts\backup-database.ps1 --full
-
-# 2. 停止所有服务
-.\scripts\stop-services.ps1
-
-# 3. 更新安装包
-# 替换 packages/ 目录中的文件
-
-# 4. 重新安装
-.\scripts\install.ps1
-
-# 5. 验证升级
-.\scripts\check-status.ps1
-```
-
----
-
-## 📞 技术支持
-
-### 日志收集命令
-```powershell
-# 生成完整技术支持包
-.\scripts\collect-support-info.ps1 > "D:\ArchiveManagement\support-info.txt"
-
-# 包含内容：
-# - Windows版本信息
-# - 服务配置
-# - 最近错误日志
-# - 系统资源使用情况
-# - 网络配置
-```
-
-### 系统信息检查
-```powershell
-# Windows版本
-[Environment]::OSVersion.VersionString
-
-# 硬件信息
-Get-WmiObject -Class Win32_ComputerSystem
-Get-WmiObject -Class Win32_LogicalDisk
-
-# 内存使用
-Get-Process | Measure-Object -Property WorkingSet | Sort-Object -Descending WorkingSet
-```
-
----
-
-## 📋 部署检查清单
-
-### 部署前检查
-- [ ] 管理员权限确认
-- [ ] 目标目录创建完成 (D:\ArchiveManagement)
-- [ ] 安装包完整性验证完成
-- [ ] 防火墙端口配置 (3000, 5432, 7700)
-
-### 部署后验证
-- [ ] PostgreSQL服务正常运行
-- [ ] Meilisearch服务正常运行  
-- [ ] ArchiveManagement应用正常运行
-- [ ] SSL连接测试通过
-- [ ] 数据备份功能正常
-- [ ] 日志轮转功能正常
-- [ ] 服务监控功能正常
-
-### 性能验证
-- [ ] 应用启动时间 < 30秒
-- [ ] 数据库查询响应 < 100ms
-- [ ] 搜索响应时间 < 500ms
-- [ ] 系统资源使用合理
-
----
-
-## 📚 相关文档
-
-- **应用文档**: 应用内部功能和API文档
-- **数据库文档**: PostgreSQL配置和优化指南
-- **安全文档**: SSL配置和权限设置指南
-- **运维文档**: 日常维护和故障排查手册
-
----
-
-## 📞 技术支持
-
-如遇到问题，请提供以下信息：
-
-1. **系统信息**: 运行 `.\scripts\collect-support-info.ps1`
-2. **错误描述**: 详细的错误信息和重现步骤
-3. **配置信息**: `config.json` 文件内容 (隐藏敏感信息)
-4. **日志文件**: 相关的日志文件内容
-
----
-
-**版本**: 1.0.0 (极简Windows版)  
-**更新日期**: 2026-01-31  
-**兼容性**: Windows Server + PostgreSQL + Meilisearch + Node.js v22
+1. **首次部署**：必须以管理员身份运行 `install.bat`
+2. **PowerShell 执行策略**：如遇到执行策略限制，请先运行：
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
+   ```
+3. **盘符选择**：安装时可选择任意盘符 (D/E/F...)
+4. **组件位置**：PostgreSQL/Node.js/Meilisearch 固定安装到 C 盘
+5. **密码管理**：安装时自动生成随机密码，保存于 `config\.env`
+6. **Prisma**：node_modules 已完整打包，支持离线运行
+7. **日志位置**：所有日志保存在 `logs\` 目录
+8. **数据备份**：定期运行 `backup.bat` 保护数据
