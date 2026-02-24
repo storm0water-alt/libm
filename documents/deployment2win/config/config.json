@@ -1,0 +1,27 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "archive_management",
+    "user": "postgres",
+    "ssl": false
+  },
+  "meilisearch": {
+    "host": "localhost",
+    "port": 7700,
+    "masterKey": "CHANGE_ME_KEY"
+  },
+  "archive": {
+    "port": 3000,
+    "storagePath": "D:\\ArchiveManagement\\data\\archives",
+    "tempPath": "D:\\ArchiveTemp"
+  },
+  "logging": {
+    "baseDir": "D:\\ArchiveManagement\\logs",
+    "retentionDays": 30
+  },
+  "services": {
+    "restartDelay": 30,
+    "startupTimeout": 300
+  }
+}
