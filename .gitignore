@@ -45,3 +45,5 @@ documents/deployment2win/app/.pm2/
 # Temporary files
 documents/deployment2win/app/*.tmp
 documents/deployment2win/app/*.temp
+
+documents/deployment2win/output/*
