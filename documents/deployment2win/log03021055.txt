@@ -1,0 +1,144 @@
+PS C:\archive-management-v20260302091811-offline\scripts> .\install.bat
+'氭湰' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'鎵ц瀹夎' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'鍚姩瀹夎绋嬪簭...' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+================================================
+Archive Management System - Installation
+================================================
+
+[0/8] Select installation drive...
+
+Available drives:
+  C:
+  D:
+
+Enter installation drive (e.g. D): C
+  - Installation path: C:\ArchiveManagement
+
+[1/8] Checking installation packages...
+  - All packages ready
+
+[2/8] Creating directory structure...
+  - Directory structure created
+
+[3/8] Generating installation configuration...
+  - config.ini generated
+  - .env generated
+  - Password: pg_20260302102730
+
+[4/8] Installing PostgreSQL (C:\Program Files\PostgreSQL\16)...
+  - PostgreSQL installed
+
+[5/8] Installing Node.js (C:\Program Files\nodejs)...
+  - Node.js installed
+
+[6/8] Installing PM2...
+  - PM2 installed
+
+[7/8] Installing Meilisearch (C:\Program Files\Meilisearch)...
+  - Meilisearch installed
+
+[8/8] Copying application configuration...
+  - Configuration copied to C:\ArchiveManagement
+
+================================================
+Installation Complete!
+================================================
+
+Installation path: C:\ArchiveManagement
+Default account: admin / admin123
+Application: http://localhost:3000
+Search service: http://localhost:7700
+
+Please run C:\ArchiveManagement\scripts\start.bat to start services
+
+PS C:\archive-management-v20260302091811-offline\scripts> .\start.bat
+'"\config.ini"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'reSQL' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'\psql.exe" -U postgres -d postgres -c "SELECT' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'NING:' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'errorlevel' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'f' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'鍚姩' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'Y' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+系统找不到指定的路径。
+'ILI_TIMEOUT' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'timeout' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+  - Meilisearch 宸插惎鍔ㄥ苟灏辩华
+'meili_done' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'ㄥ簲鐢?..' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+系统找不到指定的路径。
+'RCHIVE_HOMEa"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'Y' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'gement"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+系统找不到指定的路径。
+'湭瀹夎锛?' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+文件名、目录名或卷标语法不正确。
+文件名、目录名或卷标语法不正确。
+'-' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+
+请按任意键继续. . .
+PS C:\archive-management-v20260302091811-offline\scripts> .\start.bat
+'"\config.ini"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'reSQL' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'\psql.exe" -U postgres -d postgres -c "SELECT' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'NING:' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'errorlevel' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'f' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'鍚姩' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'Y' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+系统找不到指定的路径。
+'ILI_TIMEOUT' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'timeout' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+  - Meilisearch 宸插惎鍔ㄥ苟灏辩华
+'meili_done' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'ㄥ簲鐢?..' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+系统找不到指定的路径。
+'RCHIVE_HOMEa"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'Y' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+'gement"' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+系统找不到指定的路径。
+'湭瀹夎锛?' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+文件名、目录名或卷标语法不正确。
+文件名、目录名或卷标语法不正确。
+'-' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+
+请按任意键继续. . .
+PS C:\archive-management-v20260302091811-offline\scripts>

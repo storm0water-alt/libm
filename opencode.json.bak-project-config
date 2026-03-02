@@ -1,0 +1,135 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "auto",
+  "project": {
+    "name": "Archive Management System",
+    "description": "档案管理系统 - Archive management system with Next.js backend and Vue 3 UI mockups",
+    "mainWorkingDirectory": "archive-management"
+  },
+  "directories": {
+    "backend": "archive-management",
+    "frontend": "archive-management-ui",
+    "attachments": "attachment",
+    "documents": "documents"
+  },
+  "commands": {
+    "dev": {
+      "backend": "cd archive-management && npm run dev",
+      "frontend": "cd archive-management-ui && npm run dev"
+    },
+    "build": {
+      "backend": "cd archive-management && npm run build",
+      "frontend": "cd archive-management-ui && npm run build"
+    },
+    "test": {
+      "unit": "cd archive-management && npm run test",
+      "e2e": "cd archive-management && npm run test:e2e",
+      "single": "cd archive-management && npm run test"
+    },
+    "lint": {
+      "backend": "cd archive-management && npm run lint",
+      "frontend": "cd archive-management-ui && npm run lint"
+    },
+    "typecheck": {
+      "backend": "cd archive-management && npm run typecheck",
+      "frontend": "cd archive-management-ui && npm run type-check"
+    },
+    "docker": {
+      "init": "cd archive-management && make init",
+      "up": "cd archive-management && make up",
+      "dev": "cd archive-management && make dev",
+      "down": "cd archive-management && make down",
+      "db-shell": "cd archive-management && make db-shell",
+      "logs": "cd archive-management && make logs",
+      "health": "cd archive-management && make health"
+    },
+    "database": {
+      "seed": "cd archive-management && npm run db:seed",
+      "migrate": "cd archive-management && npx prisma migrate deploy",
+      "generate": "cd archive-management && npx prisma generate"
+    }
+  },
+  "testing": {
+    "framework": "vitest",
+    "e2eFramework": "playwright",
+    "testFilePattern": "**/*.test.ts",
+    "e2ePattern": "**/*.e2e.ts",
+    "coverageEnabled": true
+  },
+  "codeStyle": {
+    "typescript": {
+      "strictMode": true,
+      "target": "ES2022",
+      "module": "ESNext"
+    },
+    "linting": {
+      "eslint": true,
+      "prettier": true
+    },
+    "imports": {
+      "useAlias": true,
+      "alias": "@/"
+    }
+  },
+  "frameworks": {
+    "backend": ["Next.js 15", "React", "TypeScript", "Prisma", "NextAuth.js"],
+    "frontend": ["Vue 3", "TypeScript", "Element Plus", "Pinia"],
+    "search": ["Meilisearch"],
+    "cache": ["Redis"],
+    "database": ["PostgreSQL"]
+  },
+  "docker": {
+    "services": ["postgres", "redis", "meilisearch"],
+    "composeFile": "archive-management/docker-compose.yml"
+  },
+  "dataModels": {
+    "archive": "Main archive entity with archiveID, archiveNo, metadata",
+    "importRecord": "Tracks file import progress and status",
+    "operationLog": "Audit trail for all user actions",
+    "user": "User accounts with role-based permissions",
+    "license": "System licensing with device codes and auth codes"
+  },
+  "archiveFields": [
+    "archiveNo",
+    "fondsNo",
+    "retentionPeriod",
+    "retentionCode",
+    "year",
+    "deptCode",
+    "boxNo",
+    "pieceNo",
+    "title",
+    "deptIssue",
+    "responsible",
+    "docNo",
+    "date",
+    "pageNo",
+    "remark"
+  ],
+  "codeQuality": {
+    "maxFunctionLines": 50,
+    "requireJsDoc": true,
+    "requireTypeAnnotations": true
+  },
+  "conventions": {
+    "naming": {
+      "variables": "camelCase",
+      "functions": "camelCase",
+      "classes": "PascalCase",
+      "components": "PascalCase",
+      "constants": "UPPER_SNAKE_CASE",
+      "files": "kebab-case",
+      "reactComponents": "PascalCase",
+      "apiRoutes": "kebab-case",
+      "databaseModels": "PascalCase",
+      "databaseFields": "camelCase"
+    },
+    "componentStructure": "Props interface, then component function",
+    "serverComponents": true,
+    "clientComponents": "use client only when necessary"
+  },
+  "testUsers": {
+    "admin": "admin/admin123",
+    "user": "user/user123"
+  }
+}

@@ -1,0 +1,115 @@
+c:\ArchiveManagement\scripts>start.bat
+================================================
+Archive Management System - Start Services
+================================================
+
+================================================
+System Environment Check
+================================================
+
+[Check 1/6] PostgreSQL Service...
+  [NOT RUNNING] PostgreSQL service is not started
+[Check 2/6] PostgreSQL Port 5432...
+  [ERROR] PostgreSQL port 5432 is not ready
+[Check 3/6] Meilisearch Port 7700...
+  [NOT RUNNING] Meilisearch is not started
+[Check 4/6] PM2 Manager...
+  [OK] PM2 is installed
+[Check 5/6] Application Port 3000...
+  [OK] Port 3000 is available
+[Check 6/6] Configuration Files...
+  [OK] .env config file exists
+
+================================================
+[WARNING] Some checks failed. Continue anyway?
+================================================
+
+Options:
+  Y - Continue (attempt auto-fix
+  N - Exit
+
+Select [Y/N]: y
+================================================
+Starting Services
+================================================
+
+[1/4] Starting PostgreSQL...
+  - Starting PostgreSQL service...
+  [ERROR] Failed to start PostgreSQL
+  [ERROR] Cannot connect to PostgreSQL
+
+[2/4] Initialize Database...
+psql: error: connection to server at "localhost" (::1), port 5432 failed: Connection refused (0x0000274D/10061)
+        Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused (0x0000274D/10061)
+        Is the server running on that host and accepting TCP/IP connections?
+  - Creating database archive_management...
+createdb: error: connection to server at "localhost" (::1), port 5432 failed: Connection refused (0x0000274D/10061)
+        Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused (0x0000274D/10061)
+        Is the server running on that host and accepting TCP/IP connections?
+  [OK] Database initialized
+
+[3/4] Starting Meilisearch...
+  - Starting Meilisearch...
+  [WARNING] Meilisearch startup timeout
+
+[4/4] Starting Application...
+  Use 'pm2 status' to check status
+The system cannot find the path specified.
+  [OK] Application started (PM2 background
+  [ERROR] PM2 is not installed
+
+================================================
+Services Started Successfully
+================================================
+
+Access URLs:
+  Application: http://localhost:3000
+  Search:      http://localhost:7700
+
+Management Commands:
+  pm2 status                   - View process status
+  pm2 logs archive-management  - View application logs
+  .\monitor.ps1 status        - View service status
+
+Default Account: admin / admin123
+
+Current Process Status:
+[PM2] Spawning PM2 daemon with pm2_home=C:\Users\Lenovo\.pm2
+[PM2] PM2 Successfully daemonized
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+
+
+PS C:\ArchiveManagement\scripts> .\monitor.ps1 status
+
+============================================================
+Archive Management System - Service Status
+============================================================
+  PostgreSQL:          Stopped (Port: NOT LISTENING)
+  Meilisearch:         Running (Port: LISTENING)
+Set-Location: C:\ArchiveManagement\scripts\monitor.ps1:295
+Line |
+ 295 |          cd $ARCHIVE_HOME\app
+     |          ~~~~~~~~~~~~~~~~~~~~
+     | Cannot find path 'C:\ArchiveManagement\app' because it does not exist.
+  Application:         Not Running (Port: NOT LISTENING)
+
+  Disk Usage:
+    C:\: Unable to get disk info
+
+  Data Directories:
+    Archives: 0 files
+    Backups: 0 files
+
+  Commands:
+    pm2 status           - View PM2 processes
+    pm2 logs archive    - View application logs
+
+  Quick Actions:
+    .\monitor.ps1 start   - Start all services
+    .\monitor.ps1 stop    - Stop all services
+    .\monitor.ps1 restart - Restart all services
+    .\monitor.ps1 health  - Health check

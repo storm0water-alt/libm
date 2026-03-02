@@ -1,0 +1,71 @@
+c:\ArchiveManagement\scripts>start.bat
+================================================
+Archive Management System - Start Services
+================================================
+
+================================================
+System Environment Check (Informational)
+================================================
+
+[Check 1/7] PostgreSQL Service...
+  [NOT RUNNING] Will attempt to start...
+[Check 2/7] PostgreSQL Port 5432...
+  [NOT READY] Will attempt to start...
+[Check 3/7] Meilisearch Port 7700...
+  [NOT RUNNING] Will attempt to start...
+[Check 4/7] PM2 Manager...
+  [OK] PM2 is installed
+[Check 5/7] Application Port 3000...
+  [OK] Port 3000 available
+[Check 6/7] Application Directory...
+  [OK] Application directory exists
+[Check 7/7] Configuration Files...
+  [OK] .env config file exists
+
+================================================
+Starting Services (Auto-start mode)
+================================================
+
+[1/4] Starting PostgreSQL...
+  - Attempting to start PostgreSQL service...
+  [ERROR] Could not start PostgreSQL service
+  Please check PostgreSQL installation manually
+  [WARNING] PostgreSQL not ready - database operations may fail
+
+[2/4] Initialize Database...
+  [SKIPPED] PostgreSQL not available
+
+[3/4] Starting Meilisearch...
+  - Starting Meilisearch...
+  [WARNING] Meilisearch may not be ready yet
+
+[4/4] Starting Application...
+  [OK] Application started via PM2
+
+================================================
+Service Startup Complete
+================================================
+
+Access URLs:
+  Application: http://localhost:3000
+  Search:      http://localhost:7700
+
+Default Account: admin / admin123
+
+Note: Services may take a moment to fully start.
+
+Current PM2 Status:
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+
+
+PS C:\ArchiveManagement\scripts> .\monitor.ps1 status
+.\monitor.ps1 : 无法加载文件 C:\ArchiveManagement\scripts\monitor.ps1，因为在此系统上禁止运行脚本。有关详细信息，请参阅 https:/go.micro
+soft.com/fwlink/?LinkID=135170 中的 about_Execution_Policies。
+所在位置 行:1 字符: 1
++ .\monitor.ps1 status
++ ~~~~~~~~~~~~~
+    + CategoryInfo          : SecurityError: (:) []，PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
