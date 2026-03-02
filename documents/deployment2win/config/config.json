@@ -13,11 +13,11 @@
   },
   "archive": {
     "port": 3000,
-    "storagePath": "D:\\ArchiveManagement\\data\\archives",
-    "tempPath": "D:\\ArchiveTemp"
+    "storagePath": "./data/archives",
+    "tempPath": "./data/temp"
   },
   "logging": {
-    "baseDir": "D:\\ArchiveManagement\\logs",
+    "baseDir": "./logs",
     "retentionDays": 30
   },
   "services": {

@@ -143,6 +143,162 @@ cd D:\ArchiveManagement
 
 所有脚本会自动读取 `config\config.ini` 中的安装路径配置，无需手动修改。
 
+## 配置文件说明
+
+### config.ini
+
+安装后会在 `config\config.ini` 中生成以下配置项：
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `ARCHIVE_HOME` | 应用安装目录 | 安装时指定 |
+| `PG_DATA_DIR` | PostgreSQL 数据目录 | `%ARCHIVE_HOME%\data\database` |
+| `MEILI_DATA_DIR` | Meilisearch 数据目录 | `%ARCHIVE_HOME%\data\meilisearch` |
+| `BACKUP_DAYS` | 备份保留天数 | `30` |
+| `ARCHIVE_BACKUP_PATH` | 备份目录 (可选) | `%ARCHIVE_HOME%\..\ArchiveBackups` |
+
+### config.json
+
+`config\config.json` 使用相对路径，无需手动配置：
+
+```json
+{
+  "archive": {
+    "storagePath": "./data/archives",
+    "tempPath": "./data/temp"
+  },
+  "logging": {
+    "baseDir": "./logs"
+  }
+}
+```
+
+## 服务就绪检查
+
+启动服务时会自动等待服务就绪：
+
+| 服务 | 检查方式 | 超时时间 |
+|------|----------|----------|
+| PostgreSQL | 连接测试 (`SELECT 1`) | 60 秒 |
+| Meilisearch | HTTP 健康检查 (`/health`) | 30 秒 |
+| Application | PM2 进程检查 | 10 秒 |
+
+## 数据库初始化流程
+
+### 完全离线部署
+
+本系统采用**纯 SQL 方式**进行数据库初始化，无需网络连接，无需 Node.js/Prisma CLI：
+
+```
+install.bat 执行流程:
+1. ✅ 启动 PostgreSQL 服务
+2. ✅ 创建数据库 archive_management
+3. ✅ 执行 init-schema.sql 创建表结构 ← 离线
+4. ✅ 执行 init-database.sql 插入初始数据 ← 离线
+5. ✅ 启动应用服务
+```
+
+### 初始化脚本
+
+| 文件 | 用途 | 大小 |
+|------|------|------|
+| `init-data/init-schema.sql` | 创建完整数据库表结构 | ~7KB |
+| `init-data/init-database.sql` | 插入管理员账户和演示数据 | ~2KB |
+
+### 自动初始化
+
+安装时 (`install.bat`) 会自动执行：
+
+1. **创建数据库**
+   ```sql
+   CREATE DATABASE archive_management;
+   ```
+
+2. **创建表结构**（如果不存在）
+   - User - 用户表
+   - Archive - 档案表
+   - ImportRecord - 导入记录表
+   - OperationLog - 操作日志表
+   - License - 授权表
+   - SystemConfig - 系统配置表
+   - ConfigHistory - 配置历史表
+
+3. **插入初始数据**（如果不存在）
+   - 管理员账户: `admin` / `admin123`
+   - 系统配置: 初始化标记、版本号
+   - 演示档案: 2 条测试数据
+
+### 幂等性保证
+
+所有 SQL 语句都使用 `IF NOT EXISTS` / `IF EXISTS`：
+
+```sql
+-- 表创建（幂等）
+CREATE TABLE IF NOT EXISTS "User" (...)
+
+-- 数据插入（幂等）
+INSERT INTO users (...) VALUES (...) ON CONFLICT (username) DO NOTHING;
+```
+
+因此可以**安全地重复运行** `install.bat`。
+
+### 手动初始化
+
+如需手动初始化数据库：
+
+```cmd
+REM 1. 启动 PostgreSQL
+net start PostgreSQL
+
+REM 2. 创建数据库
+"C:\Program Files\PostgreSQL\16\bin\createdb.exe" -U postgres archive_management
+
+REM 3. 创建表结构
+"C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d archive_management -f D:\ArchiveManagement\init-data\init-schema.sql
+
+REM 4. 插入初始数据
+"C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d archive_management -f D:\ArchiveManagement\init-data\init-database.sql
+```
+
+### 验证初始化
+
+```cmd
+REM 连接数据库
+"C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d archive_management
+
+REM 查看表
+\dt
+
+REM 查看管理员账户
+SELECT username, role FROM "User" WHERE username='admin';
+
+REM 查看系统配置
+SELECT config_key, config_value FROM "SystemConfig";
+```
+
+## 备份与恢复
+
+### 自动备份保留策略
+
+`backup.bat` 默认保留 **30 天** 的备份文件，可通过 `config.ini` 配置：
+
+```ini
+BACKUP_DAYS=30
+```
+
+或使用 `--keep` 参数临时覆盖：
+
+```cmd
+.\scripts\monitor.ps1 backup --keep 14
+```
+
+### 备份目录
+
+默认备份到 `[安装盘符]:\ArchiveBackups`，可通过 `config.ini` 自定义：
+
+```ini
+ARCHIVE_BACKUP_PATH=E:\\MyBackups
+```
 ## 故障排查
 
 ### 服务无法启动
@@ -341,7 +497,8 @@ Rename-Item data-backup data
 | `scripts/*.ps1` | ✅ | PowerShell 运维脚本 |
 | `scripts/*.bat` | ✅ | CMD 批处理脚本 |
 | `services/*.json` | ✅ | 服务配置 |
-| `init-data/*.sql` | ✅ | 数据库初始化脚本 |
+| `init-data/init-schema.sql` | ✅ | **数据库表结构（离线）** |
+| `init-data/init-database.sql` | ✅ | **数据库初始数据（离线）** |
 | `config/.env` | ❌ | **不包含**（安装时生成） |
 | `config/config.ini` | ❌ | **不包含**（安装时生成） |
 | `data/` | ❌ | **不包含**（用户数据） |

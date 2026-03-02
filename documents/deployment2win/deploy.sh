@@ -67,6 +67,16 @@ cp -r "${STANDALONE_DIR}/"* "${STAGING_DIR}/app/"
 cp -r "${STANDALONE_DIR}/.next" "${STAGING_DIR}/app/"
 rm -f "${STAGING_DIR}/app/.env"
 
+# 6.1 复制静态资源 (standalone 模式需要单独复制)
+echo "  - 复制静态资源 (.next/static/)..."
+mkdir -p "${STAGING_DIR}/app/.next/static"
+if [ -d "${PROJECT_DIR}/.next/static" ]; then
+    cp -r "${PROJECT_DIR}/.next/static/"* "${STAGING_DIR}/app/.next/static/"
+    echo "    - 已复制 .next/static/"
+else
+    echo "    - 警告: .next/static/ 目录不存在"
+fi
+
 # 7. 复制 public 目录
 echo "  - 复制 public/ ..."
 mkdir -p "${STAGING_DIR}/app/public"
@@ -91,7 +101,23 @@ cp "${SCRIPT_DIR}/config/config.json" "${STAGING_DIR}/config/"
 # 12. 复制运维脚本
 echo ""
 echo "[6/7] 复制运维脚本..."
-cp "${SCRIPT_DIR}/scripts/"*.bat "${STAGING_DIR}/scripts/"
+
+# 修复: 转换 .bat 文件编码为 GBK (Windows CMD 兼容)
+# Windows CMD 默认使用 GBK/CP936 编码，不支持 UTF-8
+for bat_file in "${SCRIPT_DIR}/scripts/"*.bat; do
+    if [ -f "$bat_file" ]; then
+        # 使用 CP936 (Windows 代码页 936，等同于 GBK)
+        if iconv -f UTF-8 -t CP936 "$bat_file" > "${STAGING_DIR}/scripts/$(basename $bat_file)" 2>/dev/null; then
+            echo "  - Converted: $(basename $bat_file) (CP936)"
+        else
+            # 备用: 使用 GBK
+            iconv -f UTF-8 -t GBK "$bat_file" > "${STAGING_DIR}/scripts/$(basename $bat_file)" 2>/dev/null || cp "$bat_file" "${STAGING_DIR}/scripts/"
+            echo "  - Converted: $(basename $bat_file) (GBK)"
+        fi
+    fi
+done
+
+# 复制 PowerShell 脚本
 cp "${SCRIPT_DIR}/scripts/"*.ps1 "${STAGING_DIR}/scripts/"
 
 # 13. 复制服务配置和数据库脚本
