@@ -126,31 +126,40 @@ class ImportService {
   }
 
   /**
-   * Scan a folder for PDF files
+   * Scan a folder for PDF files (recursively)
    * @param folderPath - Path to folder to scan
    * @returns Array of PDF file information
    */
   async scanFolder(folderPath: string): Promise<PdfFile[]> {
     try {
-      const { readdir } = await import("fs/promises");
-      const { stat } = await import("fs/promises");
-
-      const files = await readdir(folderPath);
+      const { readdir, stat } = await import("fs/promises");
       const pdfFiles: PdfFile[] = [];
 
-      for (const file of files) {
-        if (file.toLowerCase().endsWith(".pdf")) {
-          const fullPath = join(folderPath, file);
-          const stats = await stat(fullPath);
+      /**
+       * Recursively scan directory for PDF files
+       */
+      const scanRecursive = async (dirPath: string): Promise<void> => {
+        const entries = await readdir(dirPath, { withFileTypes: true });
 
-          pdfFiles.push({
-            name: file,
-            path: fullPath,
-            size: stats.size,
-          });
+        for (const entry of entries) {
+          const fullPath = join(dirPath, entry.name);
+
+          if (entry.isDirectory()) {
+            // Recursively scan subdirectory
+            await scanRecursive(fullPath);
+          } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".pdf")) {
+            // Add PDF file to results
+            const stats = await stat(fullPath);
+            pdfFiles.push({
+              name: entry.name,
+              path: fullPath,
+              size: stats.size,
+            });
+          }
         }
-      }
+      };
 
+      await scanRecursive(folderPath);
       return pdfFiles;
     } catch (error) {
       console.error("Error scanning folder:", error);
