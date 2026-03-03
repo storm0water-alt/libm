@@ -8,9 +8,16 @@ import { headers } from "next/headers";
 /**
  * Scan folder for PDF files
  * @param folderPath - Path to the folder to scan
+ * @param options - Scan options (maxDepth, concurrent)
  * @returns Array of PDF files
  */
-export async function scanFolderAction(folderPath: string) {
+export async function scanFolderAction(
+  folderPath: string,
+  options?: {
+    maxDepth?: number;
+    concurrent?: boolean;
+  }
+) {
   const session = await auth();
 
   if (!session) {
@@ -28,7 +35,10 @@ export async function scanFolderAction(folderPath: string) {
   }
 
   try {
-    const files = await importService.scanFolder(folderPath);
+    const files = await importService.scanFolder(folderPath, {
+      maxDepth: options?.maxDepth ?? 10,
+      concurrent: options?.concurrent ?? true,
+    });
     return {
       success: true,
       data: files.filter((f) => f.name.toLowerCase().endsWith(".pdf")),

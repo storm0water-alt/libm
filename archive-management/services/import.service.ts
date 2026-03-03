@@ -20,6 +20,30 @@ export interface PdfFile {
 }
 
 /**
+ * Scan progress callback
+ */
+export interface ScanProgress {
+  /** Total directories scanned */
+  directoriesScanned: number;
+  /** Total files found */
+  filesFound: number;
+  /** Current scanning path */
+  currentPath: string;
+}
+
+/**
+ * Scan options
+ */
+export interface ScanOptions {
+  /** Maximum recursion depth (default: 10, 0 = unlimited) */
+  maxDepth?: number;
+  /** Progress callback */
+  onProgress?: (progress: ScanProgress) => void;
+  /** Enable concurrent scanning (default: true) */
+  concurrent?: boolean;
+}
+
+/**
  * Import record with progress information
  */
 export interface ImportRecordWithProgress {
@@ -126,40 +150,124 @@ class ImportService {
   }
 
   /**
-   * Scan a folder for PDF files (recursively)
+   * Scan a folder for PDF files (recursively with optimizations)
    * @param folderPath - Path to folder to scan
+   * @param options - Scan options (maxDepth, onProgress, concurrent)
    * @returns Array of PDF file information
    */
-  async scanFolder(folderPath: string): Promise<PdfFile[]> {
+  async scanFolder(folderPath: string, options: ScanOptions = {}): Promise<PdfFile[]> {
+    const {
+      maxDepth = 10,
+      onProgress,
+      concurrent = true,
+    } = options;
+
     try {
       const { readdir, stat } = await import("fs/promises");
       const pdfFiles: PdfFile[] = [];
+      let directoriesScanned = 0;
+      let filesFound = 0;
 
       /**
-       * Recursively scan directory for PDF files
+       * Recursively scan directory for PDF files with depth control
        */
-      const scanRecursive = async (dirPath: string): Promise<void> => {
+      const scanRecursive = async (dirPath: string, depth: number): Promise<void> => {
+        // Check depth limit
+        if (maxDepth > 0 && depth > maxDepth) {
+          console.log(`Max depth (${maxDepth}) reached, skipping: ${dirPath}`);
+          return;
+        }
+
         const entries = await readdir(dirPath, { withFileTypes: true });
+        directoriesScanned++;
+
+        // Report progress
+        if (onProgress) {
+          onProgress({
+            directoriesScanned,
+            filesFound,
+            currentPath: dirPath,
+          });
+        }
+
+        // Separate directories and files for concurrent processing
+        const directories: string[] = [];
+        const files: string[] = [];
 
         for (const entry of entries) {
           const fullPath = join(dirPath, entry.name);
-
           if (entry.isDirectory()) {
-            // Recursively scan subdirectory
-            await scanRecursive(fullPath);
+            directories.push(fullPath);
           } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".pdf")) {
-            // Add PDF file to results
-            const stats = await stat(fullPath);
-            pdfFiles.push({
-              name: entry.name,
-              path: fullPath,
-              size: stats.size,
-            });
+            files.push(fullPath);
+          }
+        }
+
+        // Process PDF files (can be concurrent)
+        if (concurrent && files.length > 0) {
+          const filePromises = files.map(async (fullPath) => {
+            try {
+              const stats = await stat(fullPath);
+              const fileName = fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
+              pdfFiles.push({
+                name: fileName,
+                path: fullPath,
+                size: stats.size,
+              });
+              filesFound++;
+
+              // Report progress on each file found
+              if (onProgress) {
+                onProgress({
+                  directoriesScanned,
+                  filesFound,
+                  currentPath: fullPath,
+                });
+              }
+            } catch (error) {
+              console.error(`Error reading file ${fullPath}:`, error);
+            }
+          });
+          await Promise.all(filePromises);
+        } else {
+          // Sequential file processing
+          for (const fullPath of files) {
+            try {
+              const stats = await stat(fullPath);
+              const fileName = fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
+              pdfFiles.push({
+                name: fileName,
+                path: fullPath,
+                size: stats.size,
+              });
+              filesFound++;
+
+              if (onProgress) {
+                onProgress({
+                  directoriesScanned,
+                  filesFound,
+                  currentPath: fullPath,
+                });
+              }
+            } catch (error) {
+              console.error(`Error reading file ${fullPath}:`, error);
+            }
+          }
+        }
+
+        // Process subdirectories (concurrent or sequential)
+        if (concurrent) {
+          await Promise.all(directories.map(dir => scanRecursive(dir, depth + 1)));
+        } else {
+          for (const dir of directories) {
+            await scanRecursive(dir, depth + 1);
           }
         }
       };
 
-      await scanRecursive(folderPath);
+      await scanRecursive(folderPath, 1);
+
+      console.log(`Scan completed: ${filesFound} PDF files found in ${directoriesScanned} directories`);
       return pdfFiles;
     } catch (error) {
       console.error("Error scanning folder:", error);
