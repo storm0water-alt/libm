@@ -20,6 +20,26 @@ export interface PdfFile {
 }
 
 /**
+ * File filter options
+ */
+export interface FileFilter {
+  /** Minimum file size in bytes */
+  minSize?: number;
+  /** Maximum file size in bytes */
+  maxSize?: number;
+  /** File created after this date */
+  createdAfter?: Date;
+  /** File created before this date */
+  createdBefore?: Date;
+  /** File modified after this date */
+  modifiedAfter?: Date;
+  /** File modified before this date */
+  modifiedBefore?: Date;
+  /** File name pattern (glob or regex) */
+  namePattern?: string | RegExp;
+}
+
+/**
  * Scan progress callback
  */
 export interface ScanProgress {
@@ -29,6 +49,8 @@ export interface ScanProgress {
   filesFound: number;
   /** Current scanning path */
   currentPath: string;
+  /** Scan cancelled flag */
+  cancelled?: boolean;
 }
 
 /**
@@ -41,6 +63,14 @@ export interface ScanOptions {
   onProgress?: (progress: ScanProgress) => void;
   /** Enable concurrent scanning (default: true) */
   concurrent?: boolean;
+  /** Abort signal for cancellation */
+  signal?: AbortSignal;
+  /** File filter options */
+  filter?: FileFilter;
+  /** Enable caching (default: true) */
+  useCache?: boolean;
+  /** Cache TTL in milliseconds (default: 60000 = 1 minute) */
+  cacheTTL?: number;
 }
 
 /**
@@ -144,15 +174,75 @@ async function ensureStorageDir(): Promise<void> {
  */
 class ImportService {
   private semaphore: Semaphore;
+  private scanCache: Map<string, { data: PdfFile[]; timestamp: number }>;
 
   constructor() {
     this.semaphore = new Semaphore(IMPORT_CONCURRENCY);
+    this.scanCache = new Map();
   }
 
   /**
-   * Scan a folder for PDF files (recursively with optimizations)
+   * Generate cache key from folder path and options
+   */
+  private getCacheKey(folderPath: string, options: ScanOptions): string {
+    const filterKey = options.filter 
+      ? JSON.stringify(options.filter) 
+      : '';
+    return `${folderPath}:${options.maxDepth || 10}:${options.concurrent ? 1 : 0}:${filterKey}`;
+  }
+
+  /**
+   * Check if file matches filter criteria
+   */
+  private matchesFilter(stats: { size: number; created: Date; modified: Date }, fileName: string, filter?: FileFilter): boolean {
+    if (!filter) return true;
+
+    // Size filter
+    if (filter.minSize !== undefined && stats.size < filter.minSize) return false;
+    if (filter.maxSize !== undefined && stats.size > filter.maxSize) return false;
+
+    // Date filters
+    if (filter.createdAfter && stats.created < filter.createdAfter) return false;
+    if (filter.createdBefore && stats.created > filter.createdBefore) return false;
+    if (filter.modifiedAfter && stats.modified < filter.modifiedAfter) return false;
+    if (filter.modifiedBefore && stats.modified > filter.modifiedBefore) return false;
+
+    // Name pattern filter
+    if (filter.namePattern) {
+      if (typeof filter.namePattern === 'string') {
+        // Glob pattern matching
+        const regex = new RegExp(filter.namePattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
+        if (!regex.test(fileName)) return false;
+      } else {
+        // Regex matching
+        if (!filter.namePattern.test(fileName)) return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Clear scan cache
+   */
+  clearScanCache(folderPath?: string): void {
+    if (folderPath) {
+      // Clear specific folder cache
+      for (const key of this.scanCache.keys()) {
+        if (key.startsWith(folderPath)) {
+          this.scanCache.delete(key);
+        }
+      }
+    } else {
+      // Clear all cache
+      this.scanCache.clear();
+    }
+  }
+
+  /**
+   * Scan a folder for PDF files (recursively with all optimizations)
    * @param folderPath - Path to folder to scan
-   * @param options - Scan options (maxDepth, onProgress, concurrent)
+   * @param options - Scan options (maxDepth, onProgress, concurrent, signal, filter, useCache)
    * @returns Array of PDF file information
    */
   async scanFolder(folderPath: string, options: ScanOptions = {}): Promise<PdfFile[]> {
@@ -160,18 +250,54 @@ class ImportService {
       maxDepth = 10,
       onProgress,
       concurrent = true,
+      signal,
+      filter,
+      useCache = true,
+      cacheTTL = 60000, // 1 minute default
     } = options;
+
+    // Check cache first
+    if (useCache) {
+      const cacheKey = this.getCacheKey(folderPath, options);
+      const cached = this.scanCache.get(cacheKey);
+      
+      if (cached && Date.now() - cached.timestamp < cacheTTL) {
+        console.log(`Using cached scan result for: ${folderPath}`);
+        return cached.data;
+      }
+    }
 
     try {
       const { readdir, stat } = await import("fs/promises");
       const pdfFiles: PdfFile[] = [];
       let directoriesScanned = 0;
       let filesFound = 0;
+      let cancelled = false;
 
       /**
-       * Recursively scan directory for PDF files with depth control
+       * Check if scan was cancelled
+       */
+      const checkCancelled = () => {
+        if (signal?.aborted) {
+          cancelled = true;
+          if (onProgress) {
+            onProgress({
+              directoriesScanned,
+              filesFound,
+              currentPath: folderPath,
+              cancelled: true,
+            });
+          }
+          throw new Error('Scan cancelled by user');
+        }
+      };
+
+      /**
+       * Recursively scan directory for PDF files with all optimizations
        */
       const scanRecursive = async (dirPath: string, depth: number): Promise<void> => {
+        checkCancelled();
+
         // Check depth limit
         if (maxDepth > 0 && depth > maxDepth) {
           console.log(`Max depth (${maxDepth}) reached, skipping: ${dirPath}`);
@@ -190,6 +316,8 @@ class ImportService {
           });
         }
 
+        checkCancelled();
+
         // Separate directories and files for concurrent processing
         const directories: string[] = [];
         const files: string[] = [];
@@ -203,12 +331,21 @@ class ImportService {
           }
         }
 
-        // Process PDF files (can be concurrent)
-        if (concurrent && files.length > 0) {
-          const filePromises = files.map(async (fullPath) => {
-            try {
-              const stats = await stat(fullPath);
-              const fileName = fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
+        // Process PDF files with filtering
+        const processFile = async (fullPath: string) => {
+          try {
+            const stats = await stat(fullPath);
+            const fileName = fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
+
+            // Get file metadata for filtering
+            const fileStats = {
+              size: stats.size,
+              created: stats.birthtime,
+              modified: stats.mtime,
+            };
+
+            // Apply filters
+            if (this.matchesFilter(fileStats, fileName, filter)) {
               pdfFiles.push({
                 name: fileName,
                 path: fullPath,
@@ -224,36 +361,23 @@ class ImportService {
                   currentPath: fullPath,
                 });
               }
-            } catch (error) {
-              console.error(`Error reading file ${fullPath}:`, error);
             }
-          });
-          await Promise.all(filePromises);
-        } else {
-          // Sequential file processing
-          for (const fullPath of files) {
-            try {
-              const stats = await stat(fullPath);
-              const fileName = fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
-              pdfFiles.push({
-                name: fileName,
-                path: fullPath,
-                size: stats.size,
-              });
-              filesFound++;
+          } catch (error) {
+            console.error(`Error reading file ${fullPath}:`, error);
+          }
+        };
 
-              if (onProgress) {
-                onProgress({
-                  directoriesScanned,
-                  filesFound,
-                  currentPath: fullPath,
-                });
-              }
-            } catch (error) {
-              console.error(`Error reading file ${fullPath}:`, error);
-            }
+        // Process files (concurrent or sequential)
+        if (concurrent && files.length > 0) {
+          await Promise.all(files.map(processFile));
+        } else {
+          for (const fullPath of files) {
+            checkCancelled();
+            await processFile(fullPath);
           }
         }
+
+        checkCancelled();
 
         // Process subdirectories (concurrent or sequential)
         if (concurrent) {
@@ -268,8 +392,22 @@ class ImportService {
       await scanRecursive(folderPath, 1);
 
       console.log(`Scan completed: ${filesFound} PDF files found in ${directoriesScanned} directories`);
+
+      // Cache the result
+      if (useCache && !cancelled) {
+        const cacheKey = this.getCacheKey(folderPath, options);
+        this.scanCache.set(cacheKey, {
+          data: pdfFiles,
+          timestamp: Date.now(),
+        });
+      }
+
       return pdfFiles;
     } catch (error) {
+      if (error instanceof Error && error.message === 'Scan cancelled by user') {
+        console.log('Scan was cancelled by user');
+        throw error;
+      }
       console.error("Error scanning folder:", error);
       throw new Error(`Failed to scan folder: ${error instanceof Error ? error.message : "Unknown error"}`);
     }

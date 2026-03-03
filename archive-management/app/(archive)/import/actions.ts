@@ -6,9 +6,9 @@ import { createLog, getClientIp } from "@/services/log.service";
 import { headers } from "next/headers";
 
 /**
- * Scan folder for PDF files
+ * Scan folder for PDF files with advanced options
  * @param folderPath - Path to the folder to scan
- * @param options - Scan options (maxDepth, concurrent)
+ * @param options - Scan options (maxDepth, concurrent, filter, useCache)
  * @returns Array of PDF files
  */
 export async function scanFolderAction(
@@ -16,6 +16,16 @@ export async function scanFolderAction(
   options?: {
     maxDepth?: number;
     concurrent?: boolean;
+    filter?: {
+      minSize?: number;
+      maxSize?: number;
+      createdAfter?: Date;
+      createdBefore?: Date;
+      modifiedAfter?: Date;
+      modifiedBefore?: Date;
+      namePattern?: string;
+    };
+    useCache?: boolean;
   }
 ) {
   const session = await auth();
@@ -38,15 +48,53 @@ export async function scanFolderAction(
     const files = await importService.scanFolder(folderPath, {
       maxDepth: options?.maxDepth ?? 10,
       concurrent: options?.concurrent ?? true,
+      filter: options?.filter,
+      useCache: options?.useCache ?? true,
     });
     return {
       success: true,
-      data: files.filter((f) => f.name.toLowerCase().endsWith(".pdf")),
+      data: files,
     };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to scan folder",
+    };
+  }
+}
+
+/**
+ * Clear scan cache
+ * @param folderPath - Optional folder path to clear specific cache
+ * @returns Success status
+ */
+export async function clearScanCacheAction(folderPath?: string) {
+  const session = await auth();
+
+  if (!session) {
+    return {
+      success: false,
+      error: "Unauthorized",
+    };
+  }
+
+  if (session.user.role !== "admin") {
+    return {
+      success: false,
+      error: "Forbidden: Admin access required",
+    };
+  }
+
+  try {
+    importService.clearScanCache(folderPath);
+    return {
+      success: true,
+      message: folderPath ? `Cache cleared for ${folderPath}` : "All cache cleared",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to clear cache",
     };
   }
 }
