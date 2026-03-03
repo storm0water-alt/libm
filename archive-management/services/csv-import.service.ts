@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createLog } from "./log.service";
+import { readTextWithEncodingDetection } from "@/lib/encoding";
 
 /**
  * Parse CSV line (handles quoted fields)
@@ -48,8 +49,8 @@ export async function processCSVUpload(
   try {
     console.log('[CSV Import Service] Starting CSV import:', file.name);
 
-    // Read CSV file content
-    const text = await file.text();
+    // Read CSV file content with encoding detection
+    const text = await readTextWithEncodingDetection(file);
 
     // Parse CSV
     const lines = text.split('\n').filter(line => line.trim());
