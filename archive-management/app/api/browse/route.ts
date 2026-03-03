@@ -90,12 +90,10 @@ export async function GET(request: NextRequest) {
     const validItems = items
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .filter((item) => {
-        // Directories are always shown (they might contain filtered files)
-        if (item.isDirectory) return true;
+        // Hide hidden files and folders (starting with .)
+        if (item.name.startsWith('.')) return false;
         
-        // Apply filters to files
-        if (minSize && item.size < parseInt(minSize)) return false;
-        if (maxSize && item.size > parseInt(maxSize)) return false;
+        // Apply namePattern to both files and directories
         if (namePattern) {
           try {
             const regex = new RegExp(namePattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
@@ -103,6 +101,12 @@ export async function GET(request: NextRequest) {
           } catch {
             // Invalid regex, skip pattern matching
           }
+        }
+        
+        // Apply size filters only to files
+        if (!item.isDirectory) {
+          if (minSize && item.size < parseInt(minSize)) return false;
+          if (maxSize && item.size > parseInt(maxSize)) return false;
         }
         
         return true;
