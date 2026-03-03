@@ -1,8 +1,9 @@
+-- Admin password: admin123 (bcrypt hash, 12 rounds)
 INSERT INTO "User" ("id", "username", "password", "role", "status", "lastLoginAt", "createdAt", "updatedAt")
 VALUES (
     'admin_001',
     'admin',
-    '$2b$12$LQzJtGhV8NHhZ8lJvU2xvkPt9qRqZ3BDSWvZ/KGFrFOFsWdLx/JqgKvMlPkTp9vVcDZaBGhZvJ9R2V6HK6vm',
+    '$2b$12$V7YA.BsDASKK0JWYM72L3OoLxAUO46eRKm8shn5I8Q/7s7/l4v0Uq',
     'admin',
     'enabled',
     NULL,

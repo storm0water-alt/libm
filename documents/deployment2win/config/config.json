@@ -8,8 +8,7 @@
   },
   "meilisearch": {
     "host": "localhost",
-    "port": 7700,
-    "masterKey": "CHANGE_ME_KEY"
+    "port": 7700
   },
   "archive": {
     "port": 3000,

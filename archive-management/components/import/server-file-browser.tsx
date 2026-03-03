@@ -18,7 +18,6 @@ import {
   HardDrive,
   ChevronRight,
   Home,
-  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,25 +35,23 @@ interface BrowseResponse {
   items: FileItem[];
 }
 
+interface PlatformInfo {
+  platform: string;
+  quickNavPaths: Array<{ path: string; label: string }>;
+  defaultPath: string;
+}
+
 interface ServerFileBrowserProps {
   onPathSelected: (path: string) => void;
   disabled?: boolean;
 }
 
 export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFileBrowserProps) {
-  const [currentPath, setCurrentPath] = useState("/");
+  const [currentPath, setCurrentPath] = useState("");
   const [items, setItems] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pathInput, setPathInput] = useState("/");
-
-  // Common starting points for different OS
-  const commonPaths = [
-    { path: "/", label: "Root (/)" },
-    { path: "/Volumes", label: "Volumes (macOS external drives)" },
-    { path: "/mnt", label: "Mount (Linux external drives)" },
-    { path: "/home", label: "Home (Linux)" },
-    { path: "/Users", label: "Users (macOS)" },
-  ];
+  const [pathInput, setPathInput] = useState("");
+  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
 
   const loadDirectory = async (path: string) => {
     setLoading(true);
@@ -82,9 +79,36 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
     }
   };
 
-  // Load initial directory
+  const fetchPlatformInfo = async () => {
+    try {
+      const response = await fetch("/api/browse/platform");
+      if (!response.ok) {
+        throw new Error("Failed to fetch platform info");
+      }
+
+      const result: { success: boolean; data?: PlatformInfo; error?: string } = await response.json();
+      
+      if (result.success && result.data) {
+        setPlatformInfo(result.data);
+        return result.data;
+      }
+      return null;
+    } catch (error) {
+      console.error("Platform detection error:", error);
+      return null;
+    }
+  };
+
   useEffect(() => {
-    loadDirectory("/");
+    const init = async () => {
+      const info = await fetchPlatformInfo();
+      if (info) {
+        loadDirectory(info.defaultPath);
+      } else {
+        loadDirectory("/");
+      }
+    };
+    init();
   }, []);
 
   const handleItemClick = (item: FileItem) => {
@@ -93,7 +117,11 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
   };
 
   const handleParentClick = () => {
-    const parentPath = currentPath.substring(0, currentPath.lastIndexOf("/")) || "/";
+    const separator = platformInfo?.platform === "win32" ? "\\" : "/";
+    const lastSepIndex = currentPath.lastIndexOf(separator);
+    const parentPath = lastSepIndex > 0 
+      ? currentPath.substring(0, lastSepIndex) 
+      : (platformInfo?.platform === "win32" ? currentPath.substring(0, 3) : "/");
     loadDirectory(parentPath);
   };
 
@@ -114,27 +142,27 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
 
   return (
     <div className="space-y-4">
-      {/* Quick Navigation */}
-      <div className="space-y-2">
-        <Label>快速导航</Label>
-        <div className="flex flex-wrap gap-2">
-          {commonPaths.map((p) => (
-            <Button
-              key={p.path}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickNav(p.path)}
-              disabled={disabled || loading}
-            >
-              <HardDrive className="h-3 w-3 mr-1" />
-              {p.label}
-            </Button>
-          ))}
+      {platformInfo && platformInfo.quickNavPaths.length > 0 && (
+        <div className="space-y-2">
+          <Label>快速导航</Label>
+          <div className="flex flex-wrap gap-2">
+            {platformInfo.quickNavPaths.map((p) => (
+              <Button
+                key={p.path}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickNav(p.path)}
+                disabled={disabled || loading}
+              >
+                <HardDrive className="h-3 w-3 mr-1" />
+                {p.label}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Current Path */}
       <div className="space-y-2">
         <Label htmlFor="path-input">当前路径</Label>
         <form onSubmit={handlePathSubmit} className="flex gap-2">
@@ -152,38 +180,57 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
         </form>
       </div>
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-sm overflow-x-auto">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2"
-          onClick={() => handleQuickNav("/")}
-          disabled={disabled || loading}
-        >
-          <Home className="h-3 w-3" />
-        </Button>
-        {currentPath.split("/").filter(Boolean).map((part, index, parts) => {
-          const path = "/" + parts.slice(0, index + 1).join("/");
-          const isLast = index === parts.length - 1;
-          return (
-            <div key={path} className="flex items-center gap-1">
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-              <Button
-                type="button"
-                variant={isLast ? "default" : "ghost"}
-                size="sm"
-                className="h-6 px-2"
-                onClick={() => !isLast && loadDirectory(path)}
-                disabled={disabled || loading}
-              >
-                {part}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
+      {currentPath && (
+        <div className="flex items-center gap-1 text-sm overflow-x-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2"
+            onClick={() => platformInfo && handleQuickNav(platformInfo.defaultPath)}
+            disabled={disabled || loading}
+          >
+            <Home className="h-3 w-3" />
+          </Button>
+          {(() => {
+            const separator = platformInfo?.platform === "win32" ? "\\" : "/";
+            const parts = currentPath.split(separator).filter(Boolean);
+
+            return parts.map((part, index) => {
+              let path: string;
+              if (platformInfo?.platform === "win32") {
+                // Windows: reconstruct path properly
+                if (index === 0 && part.endsWith(":")) {
+                  // Drive letter - add backslash
+                  path = part + "\\";
+                } else {
+                  path = parts.slice(0, index + 1).join(separator);
+                }
+              } else {
+                // Unix: add leading slash
+                path = "/" + parts.slice(0, index + 1).join(separator);
+              }
+
+              const isLast = index === parts.length - 1;
+              return (
+                <div key={path} className="flex items-center gap-1">
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  <Button
+                    type="button"
+                    variant={isLast ? "default" : "ghost"}
+                    size="sm"
+                    className="h-6 px-2"
+                    onClick={() => !isLast && loadDirectory(path)}
+                    disabled={disabled || loading}
+                  >
+                    {part}
+                  </Button>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
 
       {/* File List */}
       <div className="border rounded-md">

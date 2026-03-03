@@ -8,7 +8,9 @@ module.exports = {
     env: {
       NODE_ENV: 'production',
       PORT: 3000,
-      HOSTNAME: '0.0.0.0'
+      HOSTNAME: '0.0.0.0',
+      LANG: 'C.UTF-8',
+      LC_ALL: 'C.UTF-8'
     },
     max_memory_restart: '1G',
     min_uptime: '10s',

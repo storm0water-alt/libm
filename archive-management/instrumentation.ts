@@ -30,6 +30,16 @@ export async function register() {
   console.log('[Startup] Initializing services...');
 
   try {
+    // Check if running in Edge Runtime (Prisma is not compatible)
+    const isEdgeRuntime = process.env.NEXT_RUNTIME === 'edge';
+
+    if (isEdgeRuntime) {
+      console.warn('[Startup] Running in Edge Runtime - skipping Prisma-dependent initialization');
+      console.warn('[Startup] Search will fall back to database queries');
+      console.log('[Startup] Services initialization complete (Edge Runtime mode)');
+      return;
+    }
+
     // Initialize Meilisearch index
     const { initializeMeilisearch } = await import('@/services/meilisearch.service');
     const result = await initializeMeilisearch();
@@ -41,8 +51,15 @@ export async function register() {
       console.warn('[Startup] Search will fall back to Prisma database');
     }
   } catch (error) {
-    console.error('[Startup] ❌ Failed to initialize Meilisearch:', error);
-    console.warn('[Startup] Search will fall back to Prisma database');
+    // Check if error is related to Edge Runtime
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Edge Runtime') || errorMessage.includes('PrismaClient')) {
+      console.warn('[Startup] ⚠️ Prisma initialization failed (Edge Runtime detected)');
+      console.warn('[Startup] Search will fall back to database queries');
+    } else {
+      console.error('[Startup] ❌ Failed to initialize Meilisearch:', error);
+      console.warn('[Startup] Search will fall back to Prisma database');
+    }
   }
 
   console.log('[Startup] Services initialization complete');

@@ -132,7 +132,7 @@ function Start-Meilisearch {
     $envPath = Join-Path $ARCHIVE_HOME "config\.env"
 
     if (Test-Path $envPath) {
-        $key = (Select-String "MEILISEARCH_MASTER_KEY=" $envPath | Select-Object -First 1).Line.Split("=")[1].Trim()
+        $key = (Select-String "MEILI_MASTER_KEY=" $envPath | Select-Object -First 1).Line.Split("=")[1].Trim()
 
         $args = "--master-key=$key --db-path=$ARCHIVE_HOME\data\meilisearch --http-addr=localhost:7700"
         Start-Process -FilePath $meiliPath -ArgumentList $args -WindowStyle Hidden
@@ -361,6 +361,136 @@ function Invoke-Backup {
         Write-Host "  [ERROR] Backup failed" -ForegroundColor $Red
     }
 
+    Write-Host ""
+}
+
+function Reset-AdminPassword {
+    param(
+        [string]$Password = "admin123"
+    )
+
+    Write-Host ""
+    Write-Host ("=" * 60) -ForegroundColor $Cyan
+    Write-Host "Admin Password Reset" -ForegroundColor $Cyan
+    Write-Host ("=" * 60) -ForegroundColor $Cyan
+    Write-Host ""
+
+    $ARCHIVE_HOME = Get-ArchiveHome
+
+    # Find PostgreSQL
+    $pgPaths = @(
+        "C:\Program Files\PostgreSQL\16\bin",
+        "C:\Program Files\PostgreSQL\15\bin",
+        "C:\Program Files\PostgreSQL\14\bin"
+    )
+
+    $psqlPath = $null
+    foreach ($path in $pgPaths) {
+        if (Test-Path "$path\psql.exe") {
+            $psqlPath = $path
+            break
+        }
+    }
+
+    if (-not $psqlPath) {
+        $psqlInPath = Get-Command psql -ErrorAction SilentlyContinue
+        if ($psqlInPath) {
+            $psqlPath = Split-Path $psqlInPath.Source
+        }
+    }
+
+    if (-not $psqlPath) {
+        Write-Host "  [ERROR] PostgreSQL not found" -ForegroundColor $Red
+        return
+    }
+
+    Write-Host "  PostgreSQL: $psqlPath" -ForegroundColor $Gray
+
+    # Find Node.js
+    $nodePath = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodePath) {
+        Write-Host "  [ERROR] Node.js not found" -ForegroundColor $Red
+        return
+    }
+
+    Write-Host "  Node.js: $($nodePath.Source)" -ForegroundColor $Gray
+
+    # Find bcryptjs module
+    $bcryptPaths = @(
+        "$ARCHIVE_HOME\app\node_modules\bcryptjs",
+        "C:\ArchiveManagement\app\node_modules\bcryptjs"
+    )
+
+    $bcryptPath = $null
+    foreach ($path in $bcryptPaths) {
+        if (Test-Path $path) {
+            $bcryptPath = $path
+            break
+        }
+    }
+
+    if (-not $bcryptPath) {
+        Write-Host ""
+        Write-Host "  [ERROR] bcryptjs module not found" -ForegroundColor $Red
+        Write-Host "  Looking for: $ARCHIVE_HOME\app\node_modules\bcryptjs" -ForegroundColor $Gray
+        Write-Host ""
+        Write-Host "  Please run: cd $ARCHIVE_HOME\app && npm install bcryptjs" -ForegroundColor $Yellow
+        return
+    }
+
+    # Generate password hash
+    Write-Host ""
+    Write-Host "  Generating password hash..." -ForegroundColor $Yellow
+
+    $hashScript = "const bcrypt = require('$bcryptPath'); console.log(bcrypt.hashSync('$Password', 10));"
+    $hash = $hashScript | & $($nodePath.Source) - 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [ERROR] Failed to generate hash: $hash" -ForegroundColor $Red
+        return
+    }
+
+    $hash = $hash.Trim()
+    Write-Host "  Hash: $($hash.Substring(0, 20))..." -ForegroundColor $Gray
+
+    # Update password in database
+    Write-Host ""
+    Write-Host "  Updating password in database..." -ForegroundColor $Yellow
+
+    $updateSql = "UPDATE \""User\"" SET password = '$hash' WHERE username = 'admin';"
+
+    # Set environment for passwordless connection
+    $env:PGHOST = "localhost"
+    $env:PGPORT = "5432"
+    $env:PGDATABASE = "archive_management"
+    $env:PGUSER = "postgres"
+
+    $result = & "$psqlPath\psql.exe" -c $updateSql 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [ERROR] Database update failed" -ForegroundColor $Red
+        Write-Host "  $result" -ForegroundColor $Gray
+        Write-Host ""
+        Write-Host "  Try running: .\fix-postgres-auth.ps1" -ForegroundColor $Yellow
+        return
+    }
+
+    # Verify
+    Write-Host "  Verifying admin user..." -ForegroundColor $Yellow
+
+    $verifySql = "SELECT username, role, status FROM \""User\"" WHERE username='admin';"
+    $verifyResult = & "$psqlPath\psql.exe" -c $verifySql 2>&1
+
+    Write-Host ""
+    Write-Host ("=" * 60) -ForegroundColor $Green
+    Write-Host "  Password Reset Successful!" -ForegroundColor $Green
+    Write-Host ("=" * 60) -ForegroundColor $Green
+    Write-Host ""
+    Write-Host "  Username: admin" -ForegroundColor $White
+    Write-Host "  Password: $Password" -ForegroundColor $White
+    Write-Host ""
+    Write-Host "  User info:" -ForegroundColor $Gray
+    Write-Host $verifyResult
     Write-Host ""
 }
 

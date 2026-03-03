@@ -10,7 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 // Mock Prisma
-vi.mock "@/lib/prisma", () => ({
+vi.mock("@/lib/prisma", () => ({
   prisma: {
     archive: {
       findMany: vi.fn(),

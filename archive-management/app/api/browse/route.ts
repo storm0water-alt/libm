@@ -3,16 +3,21 @@ import { readdir, stat } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import { auth } from "@/auth";
+import {
+  getAllowedBasePaths,
+  getDefaultBrowsePath,
+  isPathAllowed,
+  normalizePath,
+} from "@/lib/platform";
 
-/**
- * Browse server file system
- * Query params:
- * - path: directory path to list (default: /)
- */
 export async function GET(request: NextRequest) {
+  console.log("[Browse] API called");
+
   const session = await auth();
+  console.log("[Browse] Session:", session ? { user: session.user.username, role: session.user.role } : null);
 
   if (!session || session.user.role !== "admin") {
+    console.log("[Browse] Forbidden - not admin");
     return NextResponse.json(
       { success: false, error: "Forbidden" },
       { status: 403 }
@@ -21,25 +26,22 @@ export async function GET(request: NextRequest) {
 
   try {
     const searchParams = request.nextUrl.searchParams;
-    const path = searchParams.get("path") || "/";
+    const rawPath = searchParams.get("path");
+    const path = rawPath ? normalizePath(rawPath) : getDefaultBrowsePath();
 
-    // Security: only allow specific base paths
-    const allowedBasePaths = [
-      "/",
-      "/Volumes",
-      "/mnt",
-      "/home",
-      "/Users",
-      process.cwd(),
-    ];
+    console.log("[Browse] Raw path:", rawPath);
+    console.log("[Browse] Normalized path:", path);
 
-    const isAllowed = allowedBasePaths.some(basePath =>
-      path === basePath || path.startsWith(basePath + "/")
-    );
+    const allowedPaths = getAllowedBasePaths();
+    console.log("[Browse] Allowed base paths:", allowedPaths);
 
-    if (!isAllowed) {
+    const allowed = isPathAllowed(path);
+    console.log("[Browse] Is path allowed:", allowed);
+
+    if (!allowed) {
+      console.log("[Browse] Access denied for path:", path);
       return NextResponse.json(
-        { success: false, error: "Access denied" },
+        { success: false, error: "Access denied", debug: { path, allowedPaths } },
         { status: 403 }
       );
     }
@@ -79,7 +81,6 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Filter out nulls and sort (directories first, then alphabetically)
     const validItems = items
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => {
@@ -88,8 +89,10 @@ export async function GET(request: NextRequest) {
         return a.name.localeCompare(b.name);
       });
 
-    // Get parent path
-    const parentPath = path === "/" ? null : join(path, "..");
+    const allowedBasePaths = getAllowedBasePaths();
+    const parentPath = allowedBasePaths.includes(path)
+      ? null
+      : join(path, "..");
 
     return NextResponse.json({
       success: true,

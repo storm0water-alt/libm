@@ -50,7 +50,7 @@
 //   },
 // }));
 //
-// vi.mock('bcrypt', () => ({
+// vi.mock('bcryptjs', () => ({
 //   compare: vi.fn(),
 // }));
 //

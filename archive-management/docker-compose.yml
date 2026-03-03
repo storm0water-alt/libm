@@ -142,6 +142,10 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
 
+      # UTF-8 编码设置（Windows 部署必需）
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+
       # Prisma 配置
       PRISMA_GENERATE_DATAPROXY: 1
 

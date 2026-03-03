@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { passwordResetSchema } from "@/lib/validators/auth";
 

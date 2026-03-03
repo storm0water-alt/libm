@@ -11,6 +11,24 @@ import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { LicenseStatus } from "@/components/auth/license-status";
 import { useDeviceFingerprint } from "@/hooks/use-device-fingerprint";
 
+// 前端日志工具
+const LOG_PREFIX = "[Login-Client]";
+
+function log(step: string, message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `${LOG_PREFIX}[${timestamp}] ${step}: ${message}`;
+  if (data !== undefined) {
+    console.log(logMessage, typeof data === 'object' ? JSON.stringify(data, null, 2) : data);
+  } else {
+    console.log(logMessage);
+  }
+}
+
+function logError(step: string, message: string, error?: any) {
+  const timestamp = new Date().toISOString();
+  console.error(`${LOG_PREFIX}[${timestamp}] ${step}: ${message}`, error || '');
+}
+
 interface LoginFormProps {
   initialUsername?: string;
 }
@@ -47,10 +65,21 @@ export function LoginForm({ initialUsername }: LoginFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const startTime = Date.now();
+
+    log("START", "用户提交登录表单", {
+      username,
+      remember,
+      hasDeviceCode: !!deviceCode,
+      deviceCodeLength: deviceCode?.length || 0
+    });
+
     setError("");
     setIsLoading(true);
 
     try {
+      // 构建表单数据
+      log("FORM", "构建表单数据");
       const formData = new FormData();
       formData.append("username", username);
       formData.append("password", password);
@@ -61,25 +90,61 @@ export function LoginForm({ initialUsername }: LoginFormProps) {
         formData.append("deviceCode", deviceCode);
       }
 
+      // 调用 Server Action
+      log("ACTION", "调用 loginAction Server Action");
+      const actionStartTime = Date.now();
+
       const result = await loginAction(formData);
 
+      const actionDuration = Date.now() - actionStartTime;
+      log("ACTION", `Server Action 返回 (耗时: ${actionDuration}ms)`, {
+        success: result.success,
+        error: result.error,
+        redirectTo: result.redirectTo
+      });
+
       if (!result.success) {
+        logError("RESULT", "登录失败", result.error);
         setError(result.error || "登录失败");
-        // If remember flag was returned, update local state
         if (result.remember !== undefined) {
           setRemember(result.remember);
         }
         setIsLoading(false);
-      }
-      // If successful, redirect happens automatically
-    } catch (err: any) {
-      // Next.js redirect is not an actual error
-      if (err?.digest?.startsWith("NEXT_REDIRECT")) {
-        // This is a redirect, let it happen
         return;
       }
+
+      // 成功 - 使用完整页面导航确保 cookies 被发送
+      if (result.redirectTo) {
+        log("REDIRECT", `准备重定向到 ${result.redirectTo}`, {
+          method: "window.location.href",
+          totalDuration: `${Date.now() - startTime}ms`
+        });
+        window.location.href = result.redirectTo;
+        return;
+      }
+
+      log("RESULT", "登录成功但无重定向目标");
+      setIsLoading(false);
+    } catch (err: any) {
+      const actionDuration = Date.now() - startTime;
+
+      // NEXT_REDIRECT 是预期的成功行为
+      if (err?.digest?.startsWith("NEXT_REDIRECT")) {
+        log("REDIRECT", `NEXT_REDIRECT 捕获 (总耗时: ${actionDuration}ms)`, {
+          digest: err.digest
+        });
+        log("REDIRECT", "准备重定向到 /dashboard");
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      logError("ERROR", `登录异常 (总耗时: ${actionDuration}ms)`, {
+        errorName: err?.name,
+        errorMessage: err?.message,
+        errorDigest: err?.digest
+      });
+
       setError("登录过程中发生错误");
-      console.error("Login error:", err);
       setIsLoading(false);
     }
   };

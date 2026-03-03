@@ -1,7 +1,6 @@
 "use server";
 
 import { signIn } from "@/auth";
-import { redirect } from "next/navigation";
 import { loginSchema, type LoginInput } from "@/lib/validators/auth";
 import { authenticateUser } from "@/services/auth.service";
 import { licenseService } from "@/services/license.service";
@@ -10,15 +9,13 @@ export interface LoginActionResult {
   success: boolean;
   error?: string;
   remember?: boolean;
+  redirectTo?: string;
 }
 
 /**
  * Server action for handling login form submission
- * @param formData - Form data from login form
- * @returns LoginActionResult with success status and optional error message
  */
 export async function loginAction(formData: FormData): Promise<LoginActionResult> {
-  // Extract form data
   const rawData = {
     username: formData.get("username") as string,
     password: formData.get("password") as string,
@@ -26,9 +23,8 @@ export async function loginAction(formData: FormData): Promise<LoginActionResult
     deviceCode: formData.get("deviceCode") as string,
   };
 
-  // Validate input with Zod schema
+  // Validate input
   const validationResult = loginSchema.safeParse(rawData);
-
   if (!validationResult.success) {
     const firstError = validationResult.error.issues[0];
     return {
@@ -39,9 +35,8 @@ export async function loginAction(formData: FormData): Promise<LoginActionResult
 
   const data: LoginInput = validationResult.data;
 
-  // Authenticate user using auth service
+  // Authenticate user
   const authResult = await authenticateUser(data.username, data.password);
-
   if (!authResult.success) {
     return {
       success: false,
@@ -50,10 +45,10 @@ export async function loginAction(formData: FormData): Promise<LoginActionResult
     };
   }
 
-  // Check license status (skip for admin users - they can access license management)
-  if (authResult.user?.role !== "admin") {
+  // Check license for non-admin users
+  const userRole = authResult.user?.role;
+  if (userRole !== "admin") {
     const licenseStatus = await licenseService.checkLicense(rawData.deviceCode);
-
     if (!licenseStatus.valid) {
       return {
         success: false,
@@ -63,13 +58,50 @@ export async function loginAction(formData: FormData): Promise<LoginActionResult
     }
   }
 
-  // Sign in with NextAuth - don't redirect here
-  await signIn("credentials", {
-    username: data.username,
-    password: data.password,
-    redirect: false,
-  });
+  // Sign in with Auth.js
+  try {
+    await signIn("credentials", {
+      username: data.username,
+      password: data.password,
+      redirectTo: "/dashboard",
+    });
 
-  // Redirect to dashboard on success
-  redirect("/dashboard");
+    return {
+      success: true,
+      remember: data.remember,
+      redirectTo: "/dashboard",
+    };
+  } catch (error: any) {
+    // NEXT_REDIRECT is expected success behavior
+    if (error?.digest?.startsWith("NEXT_REDIRECT")) {
+      throw error;
+    }
+
+    // Handle AuthError types
+    if (error?.name === "AuthError" || error?.type) {
+      const errorType = error.type;
+      let errorMessage = "登录失败，请重试";
+
+      switch (errorType) {
+        case "CredentialsSignin":
+          errorMessage = "用户名或密码错误";
+          break;
+        case "AccessDenied":
+          errorMessage = "访问被拒绝";
+          break;
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        remember: data.remember,
+      };
+    }
+
+    return {
+      success: false,
+      error: "登录过程中发生错误",
+      remember: data.remember,
+    };
+  }
 }

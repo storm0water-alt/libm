@@ -162,14 +162,15 @@ if (-not (Test-Path $ConfigIniPath)) {
     Write-Host "  - config.ini already exists, skipping" -ForegroundColor Gray
 }
 
-# Generate .env (only if not exists)
-$EnvPath = "$ArchiveHome\config\.env"
-if (-not (Test-Path $EnvPath)) {
-    $Timestamp = Get-Date -Format "yyyyMMddHHmmss"
-    $PGPass = "pg_$Timestamp"
-    $MeiliKey = "meili_$Timestamp"
-    $AuthKey = "auth_$Timestamp"
+# Generate .env
+$Timestamp = Get-Date -Format "yyyyMMddHHmmss"
+$PGPass = "pg_$Timestamp"
+$MeiliKey = "meili_$Timestamp"
+$AuthKey = "auth_$Timestamp"
 
+$EnvPath = "$ArchiveHome\config\.env"
+
+if (-not (Test-Path $EnvPath)) {
     $EnvTemplate = Join-Path $InstallPath "config\.env.template"
     if (Test-Path $EnvTemplate) {
         $EnvContent = Get-Content $EnvTemplate -Raw
@@ -179,13 +180,80 @@ if (-not (Test-Path $EnvPath)) {
         $EnvContent = $EnvContent -replace "%ARCHIVE_HOME%", $ArchiveHome
         $EnvContent | Out-File -FilePath $EnvPath -Encoding UTF8
         Write-Host "  - .env generated" -ForegroundColor Green
-        Write-Host "  - Database password: $PGPass" -ForegroundColor Gray
     } else {
         Write-Host "  - .env.template not found, skipping .env generation" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  - .env already exists, skipping" -ForegroundColor Gray
+    # Update existing .env with missing required variables
+    Write-Host "  - .env already exists, checking for missing variables..." -ForegroundColor Gray
+    
+    $EnvContent = Get-Content $EnvPath -Raw
+    $NeedsUpdate = $false
+    $PGPass = $null
+    $MeiliKey = $null
+    
+    # Extract existing password from DATABASE_URL if present
+    if ($EnvContent -match "DATABASE_URL=postgresql://postgres:([^@]+)@") {
+        $PGPass = $Matches[1]
+    }
+    # Or from POSTGRES_PASSWORD
+    if ($null -eq $PGPass -and $EnvContent -match "POSTGRES_PASSWORD=(.+)") {
+        $PGPass = $Matches[1].Trim()
+    }
+    if ($null -eq $PGPass) {
+        $PGPass = "pg_$Timestamp"
+    }
+    
+    # Extract MEILI_MASTER_KEY
+    if ($EnvContent -match "MEILI_MASTER_KEY=(.+)") {
+        $MeiliKey = $Matches[1].Trim()
+    }
+    if ($null -eq $MeiliKey) {
+        $MeiliKey = "meili_$Timestamp"
+    }
+    
+    # Check and add DATABASE_URL if missing
+    if ($EnvContent -notmatch "DATABASE_URL=") {
+        $DatabaseUrl = "`nDATABASE_URL=postgresql://postgres:$PGPass@localhost:5432/archive_management"
+        $EnvContent = $EnvContent.TrimEnd() + $DatabaseUrl + "`n"
+        $NeedsUpdate = $true
+        Write-Host "    - Added DATABASE_URL" -ForegroundColor Yellow
+    }
+    
+    # Check and add AUTH_TRUST_HOST if missing
+    if ($EnvContent -notmatch "AUTH_TRUST_HOST=") {
+        $AuthTrustHost = "`nAUTH_TRUST_HOST=true"
+        $EnvContent = $EnvContent.TrimEnd() + $AuthTrustHost + "`n"
+        $NeedsUpdate = $true
+        Write-Host "    - Added AUTH_TRUST_HOST=true" -ForegroundColor Yellow
+    }
+    
+    # Check and add MEILI_MASTER_KEY if missing
+    if ($EnvContent -notmatch "MEILI_MASTER_KEY=") {
+        $MeiliMasterKey = "`nMEILI_MASTER_KEY=$MeiliKey"
+        $EnvContent = $EnvContent.TrimEnd() + $MeiliMasterKey + "`n"
+        $NeedsUpdate = $true
+        Write-Host "    - Added MEILI_MASTER_KEY" -ForegroundColor Yellow
+    }
+    
+    if ($NeedsUpdate) {
+        $EnvContent | Out-File -FilePath $EnvPath -Encoding UTF8
+        Write-Host "  - .env updated with missing variables" -ForegroundColor Green
+    } else {
+        Write-Host "  - .env already complete, no changes needed" -ForegroundColor Green
+    }
 }
+
+# Copy .env to app directory (Next.js loads .env from app root by default)
+$AppEnvPath = "$ArchiveHome\app\.env"
+
+# Ensure app directory exists before copying
+if (-not (Test-Path "$ArchiveHome\app")) {
+    New-Item -ItemType Directory -Path "$ArchiveHome\app" -Force | Out-Null
+}
+
+Copy-Item -Path $EnvPath -Destination $AppEnvPath -Force
+Write-Host "  - Copied .env to app directory" -ForegroundColor Green
 
 # ============================================================================
 # Step 4: Install/Configure PostgreSQL
@@ -381,7 +449,7 @@ if ($MeiliService) {
         $EnvPath = "$ArchiveHome\config\.env"
         $MeiliKey = "defaultKey"
         if (Test-Path $EnvPath) {
-            $keyLine = Select-String "MEILISEARCH_MASTER_KEY=" $EnvPath | Select-Object -First 1
+            $keyLine = Select-String "MEILI_MASTER_KEY=" $EnvPath | Select-Object -First 1
             if ($keyLine) {
                 $MeiliKey = $keyLine.Line.Split("=")[1].Trim()
             }
@@ -482,6 +550,14 @@ if ((Test-Path $AppSource) -and ($InstallPath -ne $ArchiveHome)) {
     }
 
     Write-Host "  - Application copied" -ForegroundColor Green
+    
+    # Re-copy .env to app directory (robocopy /MIR may have deleted it)
+    $EnvPath = "$ArchiveHome\config\.env"
+    $AppEnvPath = "$ArchiveHome\app\.env"
+    if (Test-Path $EnvPath) {
+        Copy-Item -Path $EnvPath -Destination $AppEnvPath -Force
+        Write-Host "  - .env copied to app directory" -ForegroundColor Green
+    }
 }
 
 Write-Host "  - Files copied" -ForegroundColor Green
