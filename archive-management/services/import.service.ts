@@ -4,10 +4,6 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { createId } from "@paralleldrive/cuid2";
 import { createLog } from "./log.service";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
 
 /**
  * PDF file information
@@ -101,8 +97,9 @@ class Semaphore {
 
 /**
  * Storage configuration
+ * Supports both PDF_STORAGE_PATH and ARCHIVE_STORAGE_PATH for backward compatibility
  */
-const PDF_STORAGE_PATH = process.env.PDF_STORAGE_PATH || "./public/pdfs";
+const PDF_STORAGE_PATH = process.env.PDF_STORAGE_PATH || process.env.ARCHIVE_STORAGE_PATH || "./public/pdfs";
 
 /**
  * Import concurrency configuration
@@ -230,28 +227,14 @@ class ImportService {
   }
 
   /**
-   * Optimized file copy strategy
+   * Optimized file copy strategy - uses Node.js copyFile for cross-platform compatibility
    * @param source - Source file path
    * @param dest - Destination file path
    */
   private async copyFileOptimized(source: string, dest: string): Promise<void> {
-    try {
-      const stats = await import("fs/promises").then(fs => fs.stat(source));
-      const fileSize = stats.size;
-
-      if (fileSize > 50 * 1024 * 1024) {
-        // Large files: Use rsync
-        await execAsync(`rsync -av "${source}" "${dest}"`);
-      } else {
-        // Small/medium files: Use cp command
-        await execAsync(`cp "${source}" "${dest}"`);
-      }
-    } catch (error) {
-      console.error("Copy failed, using fallback:", error);
-      // Fallback to Node.js copyFile
-      const { copyFile } = await import("fs/promises");
-      await copyFile(source, dest);
-    }
+    // Use Node.js copyFile - it's cross-platform and efficient
+    const { copyFile } = await import("fs/promises");
+    await copyFile(source, dest);
   }
 
   /**
@@ -268,6 +251,11 @@ class ImportService {
     clientIp: string = ""
   ): Promise<void> {
     try {
+      // Check if source file exists
+      if (!existsSync(file.path)) {
+        throw new Error(`Source file does not exist: ${file.path}`);
+      }
+
       // Update status to processing
       await prisma.importRecord.update({
         where: { id: recordId },
@@ -289,9 +277,8 @@ class ImportService {
           data: {
             status: "skipped",
             processed: 1,
-            skipped: 1, // Increment skipped count
+            skipped: 1,
             fileName: file.name,
-            // Store skip reason in errors field
             errors: [{ archiveNo, reason: "档号已存在" }],
           },
         });
@@ -304,7 +291,6 @@ class ImportService {
           ip: clientIp,
         });
 
-        console.log(`[Import Service] Skipped existing archive number: ${archiveNo}`);
         return;
       }
 
