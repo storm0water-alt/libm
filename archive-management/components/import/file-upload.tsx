@@ -278,6 +278,7 @@ export function FileUpload({ onFilesSelected, disabled = false, selectedFiles = 
               <ServerFileBrowser
                 onPathSelected={handlePathSelected}
                 disabled={disabled || scanning}
+                filter={filters}
               />
             </TabsContent>
 
