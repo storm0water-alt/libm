@@ -166,7 +166,6 @@ export function HistoryTable({ autoRefresh = false, refreshInterval = 10000 }: H
                     <TableRow>
                       <TableHead>文件名</TableHead>
                       <TableHead className="w-[100px]">状态</TableHead>
-                      <TableHead className="w-[100px]">进度</TableHead>
                       <TableHead>操作人</TableHead>
                       <TableHead>创建时间</TableHead>
                     </TableRow>
@@ -176,7 +175,6 @@ export function HistoryTable({ autoRefresh = false, refreshInterval = 10000 }: H
                       <TableRow key={record.id}>
                         <TableCell className="font-medium">{record.fileName}</TableCell>
                         <TableCell>{getStatusBadge(record.status)}</TableCell>
-                        <TableCell>{record.progress}%</TableCell>
                         <TableCell>{record.operator}</TableCell>
                         <TableCell>{formatDate(record.createdAt)}</TableCell>
                       </TableRow>
