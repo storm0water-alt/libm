@@ -224,8 +224,8 @@ async function processCSVData(
       const retentionPeriodValue = dataMap.get('保管期限')?.trim();
       const retentionCodeValue = dataMap.get('保管期限代码')?.trim();
       const normalizedRetention = normalizeRetentionPeriod(retentionPeriodValue, retentionCodeValue);
-      updateData.retentionPeriod = normalizedRetention.retentionPeriod;
-      updateData.retentionCode = normalizedRetention.retentionCode;
+      updateData.retentionPeriod = normalizedRetention.period;
+      updateData.retentionCode = normalizedRetention.code;
       
       if (dataMap.has('年度')) updateData.year = dataMap.get('年度')?.trim();
 
