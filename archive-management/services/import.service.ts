@@ -517,8 +517,9 @@ class ImportService {
         data: { status: "processing" },
       });
 
-      // Generate archive number (档号) - using filename without extension
-      const archiveNo = file.name.replace(/\.pdf$/i, '');
+      // Generate archive number (档号) - extract filename without path and extension
+      const fileNameWithExt = file.name.split(/[/\\]/).pop() || file.name;
+      const archiveNo = fileNameWithExt.replace(/\.pdf$/i, '');
 
       // Check if archive number already exists
       const existingArchive = await prisma.archive.findUnique({
