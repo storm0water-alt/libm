@@ -374,39 +374,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 操作趋势 */}
-      <Card className="trend-card">
-        <CardHeader>
-          <h3>本周操作趋势</h3>
-        </CardHeader>
-        <CardContent>
-          <div className="trend-chart">
-            <div className="trend-bars">
-              {[
-                { day: "周一", operations: 65 },
-                { day: "周二", operations: 89 },
-                { day: "周三", operations: 72 },
-                { day: "周四", operations: 95 },
-                { day: "周五", operations: 108 },
-                { day: "周六", operations: 45 },
-                { day: "周日", operations: 58 },
-              ].map((item) => (
-                <div key={item.day} className="trend-bar">
-                  <div className="bar-wrapper">
-                    <div
-                      className="bar"
-                      style={{ height: `${(item.operations / 150) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="bar-label">{item.day}</span>
-                  <span className="bar-value">{item.operations}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <style>{`
         .dashboard {
           padding: 0;
@@ -637,63 +604,6 @@ export default function DashboardPage() {
           color: #1a202c;
         }
 
-        .trend-card {
-          margin-top: 24px;
-        }
-
-        .trend-chart {
-          padding: 16px 0;
-        }
-
-        .trend-bars {
-          display: flex;
-          align-items: end;
-          justify-content: space-between;
-          gap: 16px;
-          height: 200px;
-        }
-
-        .trend-bar {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          flex: 1;
-        }
-
-        .bar-wrapper {
-          flex: 1;
-          width: 100%;
-          display: flex;
-          align-items: end;
-          justify-content: center;
-          margin-bottom: 8px;
-        }
-
-        .bar {
-          width: 32px;
-          background: linear-gradient(135deg, #667eea, #764ba2);
-          border-radius: 4px 4px 0 0;
-          min-height: 8px;
-          transition: all 0.2s ease;
-        }
-
-        .trend-bar:hover .bar {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
-        }
-
-        .bar-label {
-          font-size: 12px;
-          color: #718096;
-          margin-bottom: 4px;
-        }
-
-        .bar-value {
-          font-size: 12px;
-          font-weight: 500;
-          color: #1a202c;
-        }
-
         /* 响应式适配 */
         @media (max-width: 1200px) {
           .main-content {
@@ -722,15 +632,6 @@ export default function DashboardPage() {
             grid-template-columns: 1fr;
             gap: 12px;
           }
-
-          .trend-bars {
-            gap: 8px;
-            height: 150px;
-          }
-
-          .bar {
-            width: 24px;
-          }
         }
 
         @media (max-width: 480px) {
@@ -744,19 +645,6 @@ export default function DashboardPage() {
 
           .stats-grid {
             grid-template-columns: 1fr;
-          }
-
-          .trend-bars {
-            height: 120px;
-          }
-
-          .bar {
-            width: 20px;
-          }
-
-          .bar-label,
-          .bar-value {
-            font-size: 10px;
           }
         }
       `}</style>

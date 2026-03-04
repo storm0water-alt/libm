@@ -1,47 +1,13 @@
+#!/usr/bin/env ts-node
 /**
- * Format a date to YYYY-MM-DD format
- * @param date - Date to format
- * @returns Formatted date string
+ * Script to normalize all date fields in Archive table to YYYY-MM-DD format
+ *
+ * Usage: npx ts-node scripts/normalize-dates.ts
  */
-export function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
-/**
- * Format a date to YYYY-MM-DD HH:mm:ss format
- * @param date - Date to format
- * @returns Formatted date string with time
- */
-export function formatDateTime(date: Date): string {
-  const dateStr = formatDate(date);
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${dateStr} ${hours}:${minutes}:${seconds}`;
-}
+import { PrismaClient } from '@prisma/client';
 
-/**
- * Check if a date is expired
- * @param date - Date to check
- * @returns true if date is in the past
- */
-export function isExpired(date: Date): boolean {
-  return date < new Date();
-}
-
-/**
- * Get days remaining until a date
- * @param date - Target date
- * @returns Number of days remaining (negative if expired)
- */
-export function getDaysRemaining(date: Date): number {
-  const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
+const prisma = new PrismaClient();
 
 /**
  * Parse various date formats and normalize to YYYY-MM-DD
@@ -57,9 +23,9 @@ export function getDaysRemaining(date: Date): number {
  * - YYYY.MM.DD (2021.01.27)
  *
  * @param dateStr - Date string in various formats
- * @returns Normalized date string in YYYY-MM-DD format, or empty string if parsing fails
+ * @returns Normalized date string in YYYY-MM-DD format, or original string if parsing fails
  */
-export function parseAndNormalizeDate(dateStr: string | null | undefined): string {
+function parseAndNormalizeDate(dateStr: string | null): string {
   if (!dateStr || typeof dateStr !== 'string') {
     return '';
   }
@@ -116,29 +82,29 @@ export function parseAndNormalizeDate(dateStr: string | null | undefined): strin
     }
   }
 
-  // If we couldn't parse the year, return empty string
+  // If we couldn't parse the year, return original
   if (!year) {
     console.warn(`Unable to parse date: "${trimmed}"`);
-    return '';
+    return trimmed;
   }
 
   // Validate year (reasonable range: 1900-2100)
   if (year < 1900 || year > 2100) {
     console.warn(`Year ${year} is out of valid range for date: "${trimmed}"`);
-    return '';
+    return trimmed;
   }
 
   // Validate month
   if (month < 1 || month > 12) {
     console.warn(`Invalid month ${month} for date: "${trimmed}"`);
-    return '';
+    return trimmed;
   }
 
   // Validate day
   const daysInMonth = new Date(year, month, 0).getDate();
   if (day < 1 || day > daysInMonth) {
     console.warn(`Invalid day ${day} for month ${month} in date: "${trimmed}"`);
-    return '';
+    return trimmed;
   }
 
   // Format as YYYY-MM-DD
@@ -147,3 +113,66 @@ export function parseAndNormalizeDate(dateStr: string | null | undefined): strin
 
   return `${year}-${formattedMonth}-${formattedDay}`;
 }
+
+async function main() {
+  console.log('Starting date normalization...');
+
+  // Fetch all archives with non-null date fields
+  const archives = await prisma.archive.findMany({
+    where: {
+      date: { not: '' }
+    },
+    select: {
+      archiveNo: true,
+      date: true
+    }
+  });
+
+  console.log(`Found ${archives.length} archives with date values`);
+
+  let updatedCount = 0;
+  let skippedCount = 0;
+  let errorCount = 0;
+
+  for (const archive of archives) {
+    if (!archive.date) continue;
+
+    const normalizedDate = parseAndNormalizeDate(archive.date);
+
+    // Only update if the date was changed
+    if (normalizedDate && normalizedDate !== archive.date) {
+      try {
+        await prisma.archive.update({
+          where: { archiveNo: archive.archiveNo },
+          data: { date: normalizedDate }
+        });
+        console.log(`✓ Updated ${archive.archiveNo}: "${archive.date}" → "${normalizedDate}"`);
+        updatedCount++;
+      } catch (error) {
+        console.error(`✗ Error updating ${archive.archiveNo}:`, error);
+        errorCount++;
+      }
+    } else if (normalizedDate === archive.date) {
+      skippedCount++;
+    } else {
+      console.warn(`⚠ Skipping ${archive.archiveNo}: could not normalize "${archive.date}"`);
+      skippedCount++;
+    }
+  }
+
+  console.log('\n=== Migration Summary ===');
+  console.log(`Total archives processed: ${archives.length}`);
+  console.log(`Updated: ${updatedCount}`);
+  console.log(`Skipped (already normalized): ${skippedCount}`);
+  console.log(`Errors: ${errorCount}`);
+  console.log('Date normalization complete!');
+}
+
+main()
+  .catch((error) => {
+    console.error('Fatal error during migration:', error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
