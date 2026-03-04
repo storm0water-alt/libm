@@ -93,6 +93,11 @@ export async function GET(request: NextRequest) {
         // Hide hidden files and folders (starting with .)
         if (item.name.startsWith('.')) return false;
         
+        // Default filter: show only directories and PDF files
+        if (!item.isDirectory && !item.name.toLowerCase().endsWith('.pdf')) {
+          return false;
+        }
+        
         // Apply namePattern to both files and directories
         if (namePattern) {
           try {
