@@ -4,6 +4,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { createId } from "@paralleldrive/cuid2";
 import { createLog } from "./log.service";
+import { parseArchiveNo } from "@/lib/utils/date";
 
 /**
  * PDF file information
@@ -556,22 +557,41 @@ class ImportService {
       // Copy and rename PDF file using optimized copy strategy
       await this.copyFileOptimized(file.path, destPath);
 
-      // Create Archive record - only set archiveNo as per PRD requirement
+      // Parse archive number to extract fields
+      const parsedArchive = parseArchiveNo(archiveNo);
+
       // Calculate fileUrl with bucket path for correct retrieval
       const bucketInfo = calculateBucketPath(archiveNo);
       const fileUrl = `/pdfs/${bucketInfo.bucketDirName}/${archiveId}.pdf`;
+
+      // Log parsed fields for debugging
+      if (parsedArchive.isValid) {
+        console.log(`[PDF Import] Parsed archive number "${archiveNo}":`, {
+          fondsNo: parsedArchive.fondsNo,
+          retentionCode: parsedArchive.retentionCode,
+          retentionPeriod: parsedArchive.retentionPeriod,
+          year: parsedArchive.year,
+          deptCode: parsedArchive.deptCode,
+          boxNo: parsedArchive.boxNo,
+          pieceNo: parsedArchive.pieceNo,
+        });
+      } else {
+        console.log(`[PDF Import] Could not fully parse archive number "${archiveNo}", extracted year: ${parsedArchive.year || 'none'}`);
+      }
 
       const archive = await prisma.archive.create({
         data: {
           archiveID: archiveId,
           archiveNo: archiveNo,
-          fondsNo: "",
-          retentionPeriod: "",
-          retentionCode: "",
-          year: "",
-          deptCode: "",
-          boxNo: "",
-          pieceNo: "",
+          // Use parsed fields from archive number
+          fondsNo: parsedArchive.fondsNo || "",
+          retentionPeriod: parsedArchive.retentionPeriod || "",
+          retentionCode: parsedArchive.retentionCode || "",
+          year: parsedArchive.year || "",
+          deptCode: parsedArchive.deptCode || "",
+          boxNo: parsedArchive.boxNo || "",
+          pieceNo: parsedArchive.pieceNo || "",
+          // Fields not available from archive number
           title: "",
           deptIssue: "",
           responsible: "",

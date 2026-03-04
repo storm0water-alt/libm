@@ -147,3 +147,111 @@ export function parseAndNormalizeDate(dateStr: string | null | undefined): strin
 
   return `${year}-${formattedMonth}-${formattedDay}`;
 }
+
+/**
+ * Parsed archive number fields
+ * 档号解析结果
+ */
+export interface ParsedArchiveNo {
+  fondsNo: string;         // 全宗号
+  retentionCode: string;   // 保管期限代码
+  retentionPeriod: string; // 保管期限
+  year: string;            // 年度
+  deptCode: string;        // 机构问题代码
+  boxNo: string;           // 盒号
+  pieceNo: string;         // 件号
+  isValid: boolean;        // 是否有效解析
+}
+
+/**
+ * Map retention code to retention period
+ * 保管期限代码映射到保管期限
+ */
+function getRetentionPeriod(code: string): string {
+  const mapping: Record<string, string> = {
+    'Y': '永久',
+    'y': '永久',
+    '1': '10年',
+    '3': '30年',
+  };
+  return mapping[code] || '永久';
+}
+
+/**
+ * Parse archive number (档号) and extract all fields
+ *
+ * Archive number format: {全宗号-保管期限代码-年度-机构问题代码-盒号-件号}
+ * Example: 00000-Y-2026-bgs-0001-00014
+ *          00000-Y-2011-bgs-0001-10011
+ *
+ * Fields:
+ * - fondsNo: 全宗号 (e.g., "00000")
+ * - retentionCode: 保管期限代码 (e.g., "Y", "1", "3")
+ * - retentionPeriod: 保管期限 (e.g., "永久", "10年", "30年")
+ * - year: 年度 (e.g., "2026")
+ * - deptCode: 机构问题代码 (e.g., "bgs")
+ * - boxNo: 盒号 (e.g., "0001")
+ * - pieceNo: 件号 (e.g., "00014")
+ *
+ * @param archiveNo - Archive number string
+ * @returns ParsedArchiveNo object with all extracted fields
+ */
+export function parseArchiveNo(archiveNo: string): ParsedArchiveNo {
+  const defaultResult: ParsedArchiveNo = {
+    fondsNo: '',
+    retentionCode: '',
+    retentionPeriod: '',
+    year: '',
+    deptCode: '',
+    boxNo: '',
+    pieceNo: '',
+    isValid: false,
+  };
+
+  if (!archiveNo || typeof archiveNo !== 'string') {
+    return defaultResult;
+  }
+
+  const trimmed = archiveNo.trim();
+  if (!trimmed) {
+    return defaultResult;
+  }
+
+  // Split by dash
+  const parts = trimmed.split('-');
+
+  // Standard format: 6 parts separated by dash
+  // {全宗号-保管期限代码-年度-机构问题代码-盒号-件号}
+  if (parts.length === 6) {
+    const [fondsNo, retentionCode, year, deptCode, boxNo, pieceNo] = parts;
+
+    // Validate year is a 4-digit number
+    const yearValid = /^\d{4}$/.test(year);
+
+    if (yearValid) {
+      return {
+        fondsNo,
+        retentionCode,
+        retentionPeriod: getRetentionPeriod(retentionCode),
+        year,
+        deptCode,
+        boxNo,
+        pieceNo,
+        isValid: true,
+      };
+    }
+  }
+
+  // Try to extract at least the year from any format
+  // Look for a 4-digit year pattern
+  const yearMatch = trimmed.match(/(^|-)(\d{4})(-|$)/);
+  if (yearMatch) {
+    return {
+      ...defaultResult,
+      year: yearMatch[2],
+      isValid: false, // Partial parse, not fully valid
+    };
+  }
+
+  return defaultResult;
+}
