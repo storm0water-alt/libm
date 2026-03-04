@@ -258,75 +258,145 @@ Write-Host "  - Copied .env to app directory" -ForegroundColor Green
 # ============================================================================
 # Step 4: Install/Configure PostgreSQL
 # ============================================================================
+# Step 4: Install/Configure PostgreSQL (Idempotent - based on Meilisearch pattern)
+# ============================================================================
 Write-Host ""
 Write-Host "[Step 4/8] Configuring PostgreSQL..." -ForegroundColor Yellow
 
 $PGPath = "C:\Program Files\PostgreSQL\16"
 $PGDataPath = "$ArchiveHome\data\database"
 $PGService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
-
-# Check if data directory is initialized
+$PGBinaryExists = Test-Path "$PGPath\bin\pg_ctl.exe"
 $DataInitialized = Test-Path "$PGDataPath\PG_VERSION"
 
+# Layer 1: Service exists -> Skip entire installation
 if ($PGService) {
-    Write-Host "  - PostgreSQL service exists ($($PGService.Status))" -ForegroundColor Gray
-} elseif (Test-Path "$PGPath\bin\pg_ctl.exe") {
-    Write-Host "  - PostgreSQL binary found" -ForegroundColor Gray
+    Write-Host "  - PostgreSQL service exists ($($PGService.Status))" -ForegroundColor Green
+} else {
+    # Layer 2: Binary not exists -> Install from packages
+    if (-not $PGBinaryExists) {
+        Write-Host "  - PostgreSQL not installed, checking for installer..." -ForegroundColor Yellow
+        
+        $pgInstaller = Get-ChildItem -Path $PackagesPath -Filter "postgresql-*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 
-    # Initialize data directory if not exists or empty
-    if (-not $DataInitialized) {
-        Write-Host "  - Initializing database cluster..." -ForegroundColor Yellow
+        if ($pgInstaller) {
+            Write-Host "  - Found installer: $($pgInstaller.Name)" -ForegroundColor Gray
+            Write-Host "  - Installing PostgreSQL (this may take a few minutes)..." -ForegroundColor Yellow
 
-        # Ensure directory exists
-        if (-not (Test-Path $PGDataPath)) {
-            New-Item -ItemType Directory -Path $PGDataPath -Force | Out-Null
-        }
+            # Simplified installation arguments (similar to Meilisearch simplicity)
+            $installArgs = @(
+                "--mode", "unattended",
+                "--unattendedmodeui", "none",
+                "--prefix", "`"$PGPath`""
+            )
 
-        # Set permissions
-        icacls $PGDataPath /grant "NETWORK SERVICE:(OI)(CI)F" 2>$null
-        icacls $PGDataPath /grant "LOCAL SERVICE:(OI)(CI)F" 2>$null
-        icacls $PGDataPath /grant "Users:(OI)(CI)F" 2>$null
+            try {
+                # Use Job with timeout to prevent hanging on PostgreSQL installer
+                # The installer may spawn child processes that don't exit properly
+                $installJob = Start-Job -ScriptBlock {
+                    param($installerPath, $argsList)
+                    Start-Process -FilePath $installerPath -ArgumentList $argsList -Wait -NoNewWindow
+                } -ArgumentList $pgInstaller.FullName, $installArgs
 
-        # Initialize database
-        $initResult = & "$PGPath\bin\initdb.exe" -U postgres -A trust -D $PGDataPath -E UTF8 --locale=C 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  - Database cluster initialized" -ForegroundColor Green
-            $DataInitialized = $true
+                # Wait up to 5 minutes (300 seconds)
+                $timeoutSeconds = 300
+                if (Wait-Job $installJob -Timeout $timeoutSeconds) {
+                    $jobResult = Receive-Job $installJob
+                    Write-Host "  - Installation process completed" -ForegroundColor Green
+                } else {
+                    Write-Host "  - Installation timeout ($timeoutSeconds seconds), checking installation status..." -ForegroundColor Yellow
+                    Stop-Job $installJob
+                }
+
+                Remove-Job $installJob -Force -ErrorAction SilentlyContinue
+
+                # Give installer a moment to finish file operations
+                Start-Sleep -Seconds 3
+
+                # Verify installation by checking binary existence (regardless of timeout)
+                $PGBinaryExists = Test-Path "$PGPath\bin\pg_ctl.exe"
+                if ($PGBinaryExists) {
+                    Write-Host "  - PostgreSQL binaries verified" -ForegroundColor Green
+                } else {
+                    Write-Host "  - Warning: PostgreSQL binaries not found after installation" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "  - Warning: Installation error: $_" -ForegroundColor Yellow
+                # Check if binary exists anyway (installer might have detected existing installation)
+                $PGBinaryExists = Test-Path "$PGPath\bin\pg_ctl.exe"
+            }
         } else {
-            Write-Host "  - Warning: Database initialization may have issues" -ForegroundColor Yellow
-            Write-Host "    $initResult" -ForegroundColor Gray
+            Write-Host "  - ERROR: PostgreSQL installer not found in: $PackagesPath" -ForegroundColor Red
+            Write-Host "    Expected file pattern: postgresql-*.exe" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "  - Data directory already initialized" -ForegroundColor Green
+        Write-Host "  - PostgreSQL executable exists" -ForegroundColor Gray
     }
-
-    # Create Windows service if not exists
-    if (-not $PGService) {
+    
+    # Layer 3: Binary exists + Service not exists -> Create service
+    if ($PGBinaryExists -and -not (Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue)) {
         Write-Host "  - Creating PostgreSQL service..." -ForegroundColor Yellow
-
+        
+        # Stop and remove default service created by installer (if any)
+        $defaultService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
+        if ($defaultService) {
+            Write-Host "  - Removing default service..." -ForegroundColor Gray
+            Stop-Service -Name PostgreSQL -Force -ErrorAction SilentlyContinue
+            & sc.exe delete PostgreSQL 2>&1 | Out-Null
+            Start-Sleep -Seconds 2
+        }
+        
+        # Initialize custom data directory (idempotent: check if already initialized)
+        if (-not $DataInitialized) {
+            Write-Host "  - Initializing database cluster..." -ForegroundColor Yellow
+            
+            if (-not (Test-Path $PGDataPath)) {
+                New-Item -ItemType Directory -Path $PGDataPath -Force | Out-Null
+            }
+            
+            # Set permissions
+            icacls $PGDataPath /grant "NETWORK SERVICE:(OI)(CI)F" 2>$null
+            icacls $PGDataPath /grant "LOCAL SERVICE:(OI)(CI)F" 2>$null
+            icacls $PGDataPath /grant "Users:(OI)(CI)F" 2>$null
+            
+            # Initialize database with trust auth (idempotent)
+            $initResult = & "$PGPath\bin\initdb.exe" -U postgres -A trust -D $PGDataPath -E UTF8 --locale=C 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  - Database cluster initialized" -ForegroundColor Green
+                $DataInitialized = $true
+            } else {
+                Write-Host "  - Warning: Database initialization may have issues" -ForegroundColor Yellow
+                Write-Host "    $initResult" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "  - Data directory already initialized" -ForegroundColor Green
+        }
+        
+        # Create service (idempotent: ignore if fails)
+        Write-Host "  - Creating PostgreSQL service..." -ForegroundColor Yellow
         & "$PGPath\bin\pg_ctl.exe" register -N PostgreSQL -D $PGDataPath 2>$null
-
+        
         Start-Sleep -Seconds 2
+        
         $PGService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
         if ($PGService) {
             Write-Host "  - PostgreSQL service created" -ForegroundColor Green
+        } else {
+            Write-Host "  - Warning: Service creation may have failed" -ForegroundColor Yellow
         }
     }
-} else {
-    Write-Host "  - PostgreSQL: Not found" -ForegroundColor Gray
-    $PGInstalled = $false
 }
 
-# Ensure PostgreSQL is running
+# Ensure PostgreSQL is running (idempotent)
 try {
     Start-Service -Name PostgreSQL -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
     
-    $svc = Get-Service PostgreSQL
-    if ($svc.Status -eq "Running") {
+    $svc = Get-Service PostgreSQL -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -eq "Running") {
         Write-Host "  - PostgreSQL is running" -ForegroundColor Green
         
-        # Create database if not exists
+        # Create database if not exists (idempotent)
         $result = & "$PGPath\bin\psql.exe" -U postgres -d postgres -t -c "SELECT 1 FROM pg_database WHERE datname='archive_management'" 2>$null
         $result = $result.Trim()
 
