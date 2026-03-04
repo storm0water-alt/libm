@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Archive Management System",
-  description: "A comprehensive archive management system built with Next.js",
+  title: "档案管理系统",
+  description: "档案管理系统",
 };
 
 export default function RootLayout({

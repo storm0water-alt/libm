@@ -28,9 +28,15 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const rawPath = searchParams.get("path");
     const path = rawPath ? normalizePath(rawPath) : getDefaultBrowsePath();
+    
+    // Get filter parameters
+    const minSize = searchParams.get("minSize");
+    const maxSize = searchParams.get("maxSize");
+    const namePattern = searchParams.get("namePattern");
 
     console.log("[Browse] Raw path:", rawPath);
     console.log("[Browse] Normalized path:", path);
+    console.log("[Browse] Filters:", { minSize, maxSize, namePattern });
 
     const allowedPaths = getAllowedBasePaths();
     console.log("[Browse] Allowed base paths:", allowedPaths);
@@ -83,6 +89,33 @@ export async function GET(request: NextRequest) {
 
     const validItems = items
       .filter((item): item is NonNullable<typeof item> => item !== null)
+      .filter((item) => {
+        // Hide hidden files and folders (starting with .)
+        if (item.name.startsWith('.')) return false;
+        
+        // Default filter: show only directories and PDF files
+        if (!item.isDirectory && !item.name.toLowerCase().endsWith('.pdf')) {
+          return false;
+        }
+        
+        // Apply namePattern to both files and directories
+        if (namePattern) {
+          try {
+            const regex = new RegExp(namePattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
+            if (!regex.test(item.name)) return false;
+          } catch {
+            // Invalid regex, skip pattern matching
+          }
+        }
+        
+        // Apply size filters only to files
+        if (!item.isDirectory) {
+          if (minSize && item.size < parseInt(minSize)) return false;
+          if (maxSize && item.size > parseInt(maxSize)) return false;
+        }
+        
+        return true;
+      })
       .sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;

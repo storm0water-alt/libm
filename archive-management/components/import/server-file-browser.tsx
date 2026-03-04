@@ -41,12 +41,19 @@ interface PlatformInfo {
   defaultPath: string;
 }
 
+interface ScanFilter {
+  minSize?: number;
+  maxSize?: number;
+  namePattern?: string;
+}
+
 interface ServerFileBrowserProps {
   onPathSelected: (path: string) => void;
   disabled?: boolean;
+  filter?: ScanFilter;
 }
 
-export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFileBrowserProps) {
+export function ServerFileBrowser({ onPathSelected, disabled = false, filter }: ServerFileBrowserProps) {
   const [currentPath, setCurrentPath] = useState("");
   const [items, setItems] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +63,13 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
   const loadDirectory = async (path: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+      // Build query params with filter
+      const params = new URLSearchParams({ path: path });
+      if (filter?.minSize) params.append('minSize', filter.minSize.toString());
+      if (filter?.maxSize) params.append('maxSize', filter.maxSize.toString());
+      if (filter?.namePattern) params.append('namePattern', filter.namePattern);
+
+      const response = await fetch(`/api/browse?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error(`Failed to browse: ${response.status}`);
@@ -110,6 +123,13 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
     };
     init();
   }, []);
+
+  // Reload when filter changes
+  useEffect(() => {
+    if (currentPath) {
+      loadDirectory(currentPath);
+    }
+  }, [filter?.minSize, filter?.maxSize, filter?.namePattern]);
 
   const handleItemClick = (item: FileItem) => {
     if (!item.isDirectory) return;
@@ -254,7 +274,7 @@ export function ServerFileBrowser({ onPathSelected, disabled = false }: ServerFi
               ) : items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    此目录为空
+                    {filter ? "此目录中没有符合条件的文件/文件夹" : "此目录为空"}
                   </TableCell>
                 </TableRow>
               ) : (
