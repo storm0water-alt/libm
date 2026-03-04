@@ -123,6 +123,46 @@ export async function processCSVUpload(
 }
 
 /**
+ * Normalize retention period and code
+ * Maps retention period to standard values:
+ * - 10年 → retentionPeriod: "10年", retentionCode: "1"
+ * - 30年 → retentionPeriod: "30年", retentionCode: "3"
+ * - 永久 → retentionPeriod: "永久", retentionCode: "Y"
+ * 
+ * If not matching, default to "永久"
+ */
+function normalizeRetentionPeriod(
+  period?: string,
+  code?: string
+): { retentionPeriod: string; retentionCode: string } {
+  // Valid retention period mappings
+  const validMappings: Record<string, { period: string; code: string }> = {
+    '10年': { period: '10年', code: '1' },
+    '10': { period: '10年', code: '1' },
+    '1': { period: '10年', code: '1' },
+    '30年': { period: '30年', code: '3' },
+    '30': { period: '30年', code: '3' },
+    '3': { period: '30年', code: '3' },
+    '永久': { period: '永久', code: 'Y' },
+    'y': { period: '永久', code: 'Y' },
+    'Y': { period: '永久', code: 'Y' },
+  };
+
+  // Try to match by period first
+  if (period && validMappings[period.trim()]) {
+    return validMappings[period.trim()];
+  }
+
+  // Try to match by code
+  if (code && validMappings[code.trim()]) {
+    return validMappings[code.trim()];
+  }
+
+  // Default to permanent retention
+  return { retentionPeriod: '永久', retentionCode: 'Y' };
+}
+
+/**
  * Process CSV data asynchronously
  * Updates archive records based on 档号 (archiveNo)
  */
@@ -179,8 +219,14 @@ async function processCSVData(
       // Map CSV columns to database fields
       // Support both variants: 部门代码/机构问题代码, 页数/页号
       if (dataMap.has('全宗号')) updateData.fondsNo = dataMap.get('全宗号')?.trim();
-      if (dataMap.has('保管期限')) updateData.retentionPeriod = dataMap.get('保管期限')?.trim();
-      if (dataMap.has('保管期限代码')) updateData.retentionCode = dataMap.get('保管期限代码')?.trim();
+      
+      // Normalize retention period and code
+      const retentionPeriodValue = dataMap.get('保管期限')?.trim();
+      const retentionCodeValue = dataMap.get('保管期限代码')?.trim();
+      const normalizedRetention = normalizeRetentionPeriod(retentionPeriodValue, retentionCodeValue);
+      updateData.retentionPeriod = normalizedRetention.retentionPeriod;
+      updateData.retentionCode = normalizedRetention.retentionCode;
+      
       if (dataMap.has('年度')) updateData.year = dataMap.get('年度')?.trim();
 
       // Support both 部门代码 and 机构问题代码
@@ -196,7 +242,20 @@ async function processCSVData(
       if (dataMap.has('机构问题')) updateData.deptIssue = dataMap.get('机构问题')?.trim();
       if (dataMap.has('责任者')) updateData.responsible = dataMap.get('责任者')?.trim();
       if (dataMap.has('文号')) updateData.docNo = dataMap.get('文号')?.trim();
-      if (dataMap.has('日期')) updateData.date = dataMap.get('日期')?.trim();
+
+      // Parse and normalize date format to YYYY-MM-DD
+      if (dataMap.has('日期')) {
+        const rawDate = dataMap.get('日期')?.trim() || '';
+        const { parseAndNormalizeDate } = require('@/lib/utils/date');
+        const normalizedDate = parseAndNormalizeDate(rawDate);
+        if (normalizedDate) {
+          updateData.date = normalizedDate;
+        } else {
+          // Keep original value if parsing fails, but log a warning
+          console.warn(`Failed to parse date "${rawDate}" for archive ${archiveNo}, keeping original value`);
+          updateData.date = rawDate;
+        }
+      }
 
       // Support both 页数 and 页号
       if (dataMap.has('页数')) {

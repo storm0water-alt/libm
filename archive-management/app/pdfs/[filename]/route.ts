@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
+import { getPdfStoragePath } from "@/lib/storage-config";
 
 export const runtime = "nodejs";
 
@@ -14,8 +15,8 @@ export async function GET(
   try {
     const { filename } = await params;
 
-    // Get PDF storage path from environment variable
-    const pdfStoragePath = process.env.PDF_STORAGE_PATH || join(process.cwd(), "public", "pdfs");
+    // Get PDF storage path from centralized configuration
+    const pdfStoragePath = getPdfStoragePath();
 
     // Security: only allow .pdf files
     if (!filename.toLowerCase().endsWith(".pdf")) {
@@ -29,11 +30,19 @@ export async function GET(
     const safeFilename = filename.replace(/\.\./g, "").replace(/[\/\\]/g, "");
     const filePath = join(pdfStoragePath, safeFilename);
 
+    // Debug logging
+    console.log("[PDF Serve] Request for file:", filename);
+    console.log("[PDF Serve] Storage path:", pdfStoragePath);
+    console.log("[PDF Serve] Full file path:", filePath);
+    console.log("[PDF Serve] File exists:", existsSync(filePath));
+
     // Check if file exists
     if (!existsSync(filePath)) {
       console.error("[PDF Serve] File not found:", filePath);
+      console.error("[PDF Serve] Storage path used:", pdfStoragePath);
+      console.error("[PDF Serve] Current working directory:", process.cwd());
       return NextResponse.json(
-        { error: "File not found", path: filePath },
+        { error: "File not found", path: filePath, storagePath: pdfStoragePath },
         { status: 404 }
       );
     }

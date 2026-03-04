@@ -151,9 +151,11 @@ class Semaphore {
 
 /**
  * Storage configuration
- * Supports both PDF_STORAGE_PATH and ARCHIVE_STORAGE_PATH for backward compatibility
+ * Uses centralized storage configuration for cross-platform compatibility
  */
-const PDF_STORAGE_PATH = process.env.PDF_STORAGE_PATH || process.env.ARCHIVE_STORAGE_PATH || "./public/pdfs";
+import { getPdfStoragePath } from "@/lib/storage-config";
+
+const PDF_STORAGE_PATH = getPdfStoragePath();
 
 /**
  * Import concurrency configuration
