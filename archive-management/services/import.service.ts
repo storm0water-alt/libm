@@ -153,7 +153,7 @@ class Semaphore {
  * Storage configuration
  * Uses centralized storage configuration for cross-platform compatibility
  */
-import { getPdfStoragePath } from "@/lib/storage-config";
+import { getPdfStoragePath, getPdfBucketFilePath, ensureBucketDir, calculateBucketPath } from "@/lib/storage-config";
 
 const PDF_STORAGE_PATH = getPdfStoragePath();
 
@@ -161,15 +161,6 @@ const PDF_STORAGE_PATH = getPdfStoragePath();
  * Import concurrency configuration
  */
 const IMPORT_CONCURRENCY = parseInt(process.env.IMPORT_CONCURRENCY || "3");
-
-/**
- * Ensure PDF storage directory exists
- */
-async function ensureStorageDir(): Promise<void> {
-  if (!existsSync(PDF_STORAGE_PATH)) {
-    await mkdir(PDF_STORAGE_PATH, { recursive: true });
-  }
-}
 
 /**
  * Import Service Class
@@ -555,14 +546,21 @@ class ImportService {
       // Generate archiveID
       const archiveId = createId();
 
-      // Ensure storage directory exists
-      await ensureStorageDir();
+      // Calculate bucket path and ensure bucket directory exists
+      const destPath = getPdfBucketFilePath(archiveNo, archiveId);
+      const bucketDir = destPath.substring(0, destPath.lastIndexOf(require("path").sep));
+      ensureBucketDir(bucketDir);
+
+      console.log(`[Bucket Storage] Archive: ${archiveNo} -> Bucket: ${destPath.split("/").slice(-2).join("/")}`);
 
       // Copy and rename PDF file using optimized copy strategy
-      const destPath = join(PDF_STORAGE_PATH, `${archiveId}.pdf`);
       await this.copyFileOptimized(file.path, destPath);
 
       // Create Archive record - only set archiveNo as per PRD requirement
+      // Calculate fileUrl with bucket path for correct retrieval
+      const bucketInfo = calculateBucketPath(archiveNo);
+      const fileUrl = `/pdfs/${bucketInfo.bucketDirName}/${archiveId}.pdf`;
+
       const archive = await prisma.archive.create({
         data: {
           archiveID: archiveId,
@@ -581,7 +579,7 @@ class ImportService {
           date: "",
           pageNo: "",
           remark: null,
-          fileUrl: `/pdfs/${archiveId}.pdf`,
+          fileUrl: fileUrl,
           importRecordId: recordId,
         },
       });

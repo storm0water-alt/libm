@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { getPdfStoragePath } from "@/lib/storage-config";
+import { getPdfStoragePath, parseBucketFileUrl } from "@/lib/storage-config";
 
 export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
 
-// GET /pdfs/[filename] - Serve PDF files from storage directory
+// GET /pdfs/[...filename] - Serve PDF files from storage directory
+// Supports both bucket storage format (/pdfs/{year}-{bucket}/{archiveID}.pdf) and legacy format (/pdfs/{archiveID}.pdf)
+// Uses catch-all route [...filename] to match multi-segment paths like "2021-5/abc123.pdf"
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ filename: string }> }
+  { params }: { params: Promise<{ filename: string[] }> }
 ) {
   try {
-    const { filename } = await params;
+    const { filename: filenameParts } = await params;
 
-    // Get PDF storage path from centralized configuration
+    // Join the path segments back together
+    // e.g., ["2021-5", "abc123.pdf"] -> "2021-5/abc123.pdf"
+    const filename = filenameParts.join("/");
+
     const pdfStoragePath = getPdfStoragePath();
 
     // Security: only allow .pdf files
@@ -26,13 +31,42 @@ export async function GET(
       );
     }
 
-    // Prevent directory traversal attacks
-    const safeFilename = filename.replace(/\.\./g, "").replace(/[\/\\]/g, "");
-    const filePath = join(pdfStoragePath, safeFilename);
+    // Security: validate filename format
+    // Allow bucket format: {year}-{bucket}/{archiveID}.pdf (e.g., "2026-2/abc123.pdf")
+    // Allow legacy format: {archiveID}.pdf (e.g., "abc123.pdf")
+    // Block directory traversal attacks (../) and absolute paths
+
+    // Check for directory traversal
+    if (filename.includes("..")) {
+      return NextResponse.json(
+        { error: "Invalid filename: directory traversal not allowed" },
+        { status: 403 }
+      );
+    }
+
+    // Try bucket storage format first: {year}-{bucket}/{archiveID}.pdf
+    // Parse from filename like "2026-0/abc123.pdf" or legacy "abc123.pdf"
+    const bucketInfo = parseBucketFileUrl(filename);
+
+    // For non-bucket format, sanitize the filename (remove any path separators)
+    const safeFilename = bucketInfo ? filename : filename.replace(/[\/\\]/g, "");
+
+    let filePath: string;
+    let bucketPath = "";
+
+    if (bucketInfo) {
+      // New bucket storage format
+      bucketPath = join(pdfStoragePath, `${bucketInfo.year}-${bucketInfo.bucketNumber}`);
+      filePath = join(bucketPath, `${bucketInfo.archiveId}.pdf`);
+    } else {
+      // Legacy format: direct filename in root storage
+      filePath = join(pdfStoragePath, safeFilename);
+    }
 
     // Debug logging
     console.log("[PDF Serve] Request for file:", filename);
     console.log("[PDF Serve] Storage path:", pdfStoragePath);
+    console.log("[PDF Serve] Bucket path:", bucketPath || "(root storage)");
     console.log("[PDF Serve] Full file path:", filePath);
     console.log("[PDF Serve] File exists:", existsSync(filePath));
 
