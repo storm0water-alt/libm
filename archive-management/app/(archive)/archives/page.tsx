@@ -32,7 +32,7 @@ import type { ArchiveItem } from "@/services/archive.service";
 import { useLoading } from "@/lib/loading-context";
 
 // Retention period options (enum)
-const RETENTION_PERIODS = ["永久", "长期", "短期", "10年", "30年"];
+const RETENTION_PERIODS = ["10年", "30年", "永久"];
 
 export default function ArchivesPage() {
   const router = useRouter();
