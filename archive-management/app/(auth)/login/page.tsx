@@ -42,10 +42,10 @@ export default function LoginPage() {
             WebkitTextFillColor: 'transparent',
             margin: '0 0 8px 0'
           }}>
-            正成档案管理系统
+            档案管理系统
           </h1>
           <p style={{ fontSize: '14px', color: '#718096', margin: 0 }}>
-            Zhengcheng Archive Management System
+            Archive Management System
           </p>
         </div>
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
 
         <div style={{ textAlign: 'center', marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
           <p style={{ margin: 0, fontSize: '12px', color: '#a0aec0' }}>
-            © 2024 正成档案管理系统. All rights reserved.
+            © {new Date().getFullYear()} ZC company
           </p>
         </div>
       </div>
