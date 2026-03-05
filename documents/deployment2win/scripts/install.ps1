@@ -21,6 +21,44 @@ if (-not (Test-Path $PackagesPath)) {
 }
 
 # ============================================================================
+# Helper function: Refresh environment variables from registry
+# ============================================================================
+function Update-SessionEnvironment {
+    <#
+    .SYNOPSIS
+    Refreshes environment variables in the current session from registry.
+    This is needed because MSI installers update system PATH but running
+    PowerShell sessions don't automatically pick up the changes.
+    #>
+
+    # Refresh user environment variables
+    $userEnv = [Environment]::GetEnvironmentVariables("User")
+    $userEnv.GetEnumerator() | ForEach-Object {
+        [Environment]::SetEnvironmentVariable($_.Key, $_.Value, "Process")
+    }
+
+    # Refresh system environment variables
+    $sysEnv = [Environment]::GetEnvironmentVariables("Machine")
+    $sysEnv.GetEnumerator() | ForEach-Object {
+        [Environment]::SetEnvironmentVariable($_.Key, $_.Value, "Process")
+    }
+
+    # Ensure Node.js paths are in PATH (for immediate use)
+    $nodePath = "C:\Program Files\nodejs"
+    $npmPath = "$env:APPDATA\npm"
+
+    $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
+    if ($currentPath -notlike "*$nodePath*") {
+        [Environment]::SetEnvironmentVariable("PATH", "$nodePath;$currentPath", "Process")
+    }
+
+    $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
+    if ((Test-Path $npmPath) -and $currentPath -notlike "*$npmPath*") {
+        [Environment]::SetEnvironmentVariable("PATH", "$npmPath;$currentPath", "Process")
+    }
+}
+
+# ============================================================================
 # Step 0: Select installation drive
 # ============================================================================
 Write-Host "[Step 0/8] Select installation drive..." -ForegroundColor Yellow
@@ -492,10 +530,14 @@ if ($NodeInstalled) {
     if ($NodeExe) {
         Write-Host "  - Installing Node.js..." -ForegroundColor Yellow
         Start-Process -FilePath "msiexec.exe" -ArgumentList "/i", $NodeExe.FullName, "/quiet", "/norestart" -Wait -NoNewWindow
-        
+
         if (Test-Path "C:\Program Files\nodejs\node.exe") {
             Write-Host "  - Node.js installed" -ForegroundColor Green
             $NodeInstalled = $true
+
+            # Refresh environment variables so node/npm are available in current session
+            Write-Host "  - Refreshing environment variables..." -ForegroundColor Gray
+            Update-SessionEnvironment
         }
     }
 }
@@ -512,15 +554,19 @@ if ($PM2Installed) {
     $npmPath = "C:\Program Files\nodejs\npm.cmd"
     if (Test-Path $npmPath) {
         Write-Host "  - Installing PM2..." -ForegroundColor Yellow
-        
+
         # Use Chinese mirror
         & $npmPath config set registry https://registry.npmmirror.com 2>$null | Out-Null
         & $npmPath install -g pm2 2>$null | Out-Null
         & $npmPath config set registry https://registry.npmjs.org 2>$null | Out-Null
-        
+
         if (Test-Path "$env:APPDATA\npm\pm2.cmd") {
             Write-Host "  - PM2 installed" -ForegroundColor Green
             $PM2Installed = $true
+
+            # Refresh environment variables so pm2 is available in current session
+            Write-Host "  - Refreshing environment variables..." -ForegroundColor Gray
+            Update-SessionEnvironment
         }
     }
 }
