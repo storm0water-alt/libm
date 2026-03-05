@@ -169,6 +169,25 @@ function Start-App {
     Write-Host "Starting Application..." -ForegroundColor $Yellow
 
     $ARCHIVE_HOME = Get-ArchiveHome
+
+    # Try ArchiveApp service first
+    $archiveAppSvc = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+    if ($archiveAppSvc) {
+        Write-Host "  - Starting ArchiveApp service..." -ForegroundColor Gray
+        try {
+            Start-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 8
+
+            if ((Get-PortStatus 3000) -eq "LISTENING") {
+                Write-Host "  [OK] Started via service" -ForegroundColor $Green
+                return
+            }
+        } catch {
+            Write-Host "  - Service start failed, falling back to PM2" -ForegroundColor Yellow
+        }
+    }
+
+    # Fallback to PM2
     $pm2Path = "$env:APPDATA\npm\pm2.cmd"
 
     if (-not (Test-Path $pm2Path)) {
@@ -194,7 +213,7 @@ function Start-App {
     Start-Sleep -Seconds 8
 
     if ((Get-PortStatus 3000) -eq "LISTENING") {
-        Write-Host "  [OK] Started successfully" -ForegroundColor $Green
+        Write-Host "  [OK] Started via PM2" -ForegroundColor $Green
     } else {
         Write-Host "  [WARNING] May not be ready yet" -ForegroundColor $Yellow
     }
@@ -203,6 +222,20 @@ function Start-App {
 function Stop-App {
     Write-Host "Stopping Application..." -ForegroundColor $Yellow
 
+    # Try ArchiveApp service first
+    $archiveAppSvc = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+    if ($archiveAppSvc -and $archiveAppSvc.Status -eq "Running") {
+        try {
+            Stop-Service -Name ArchiveApp -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+            Write-Host "  [OK] Stopped via service" -ForegroundColor $Green
+            return
+        } catch {
+            Write-Host "  - Service stop failed, trying PM2" -ForegroundColor Yellow
+        }
+    }
+
+    # Fallback to PM2
     $pm2Path = "$env:APPDATA\npm\pm2.cmd"
 
     if (Test-Path $pm2Path) {
@@ -235,35 +268,46 @@ function Show-Status {
     }
 
     # Meilisearch
+    $msService = Get-Service -Name Meilisearch -ErrorAction SilentlyContinue
     $msPort = Get-PortStatus 7700
-    $msProcess = Get-Process -Name meilisearch -ErrorAction SilentlyContinue
-    if ($msPort -eq "LISTENING") {
+    if ($msService -and $msService.Status -eq "Running") {
         Write-Host "  Meilisearch: Running (Port: $msPort)" -ForegroundColor $Green
-    } elseif ($msProcess) {
-        Write-Host "  Meilisearch: Running (no port)" -ForegroundColor $Yellow
+    } elseif ($msPort -eq "LISTENING") {
+        Write-Host "  Meilisearch: Running (Port: $msPort, no service)" -ForegroundColor $Yellow
     } else {
         Write-Host "  Meilisearch: Stopped (Port: $msPort)" -ForegroundColor $Red
     }
 
-    # Application
+    # ArchiveApp Service
+    $appService = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
     $appPort = Get-PortStatus 3000
-    $pm2Path = "$env:APPDATA\npm\pm2.cmd"
-    $appRunning = $false
 
-    if (Test-Path $pm2Path) {
-        cd "$ARCHIVE_HOME\app"
-        $pm2List = & $pm2Path jlist 2>$null | Out-String
-        if ($pm2List -match "archive-management") {
-            $appRunning = $true
+    if ($appService) {
+        if ($appService.Status -eq "Running") {
+            Write-Host "  ArchiveApp:  Running (Port: $appPort)" -ForegroundColor $Green
+        } else {
+            Write-Host "  ArchiveApp:  $($appService.Status) (Port: $appPort)" -ForegroundColor $Yellow
         }
-    }
-
-    if ($appPort -eq "LISTENING") {
-        Write-Host "  Application: Running (Port: $appPort)" -ForegroundColor $Green
-    } elseif ($appRunning) {
-        Write-Host "  Application: PM2 running, port not ready" -ForegroundColor $Yellow
     } else {
-        Write-Host "  Application: Stopped (Port: $appPort)" -ForegroundColor $Red
+        # Check PM2 if service not installed
+        $pm2Path = "$env:APPDATA\npm\pm2.cmd"
+        $appRunning = $false
+
+        if (Test-Path $pm2Path) {
+            cd "$ARCHIVE_HOME\app"
+            $pm2List = & $pm2Path jlist 2>$null | Out-String
+            if ($pm2List -match "archive-management") {
+                $appRunning = $true
+            }
+        }
+
+        if ($appPort -eq "LISTENING") {
+            Write-Host "  Application: Running via PM2 (Port: $appPort)" -ForegroundColor $Green
+        } elseif ($appRunning) {
+            Write-Host "  Application: PM2 running, port not ready" -ForegroundColor $Yellow
+        } else {
+            Write-Host "  Application: Stopped (Port: $appPort)" -ForegroundColor $Red
+        }
     }
 
     Write-Host ""
