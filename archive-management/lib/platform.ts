@@ -1,6 +1,7 @@
 import { execSync } from "child_process";
 import { existsSync } from "fs";
-import { platform } from "os";
+import { platform, homedir } from "os";
+import { join } from "path";
 
 /**
  * Platform detection and cross-platform path utilities
@@ -150,15 +151,45 @@ export function getDefaultRootPaths(): string[] {
 }
 
 /**
+ * Get the desktop path for the current user
+ * Works across Windows, macOS, and Linux
+ * @returns Desktop path or null if it doesn't exist
+ */
+export function getDesktopPath(): string | null {
+  try {
+    const home = homedir();
+    const desktopPath = join(home, "Desktop");
+    
+    if (existsSync(desktopPath)) {
+      return desktopPath;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("[Platform] Failed to get desktop path:", error);
+    return null;
+  }
+}
+
+/**
  * Get common quick navigation paths for the current platform
  */
 export function getQuickNavPaths(): Array<{ path: string; label: string }> {
   const currentPlatform = getPlatform();
+  const desktopPath = getDesktopPath();
+  const paths: Array<{ path: string; label: string }> = [];
   
   switch (currentPlatform) {
     case "win32": {
       const drives = getWindowsDrives();
-      const paths: Array<{ path: string; label: string }> = [];
+      
+      // Add desktop path first if it exists
+      if (desktopPath) {
+        paths.push({
+          path: desktopPath,
+          label: "Desktop (桌面)",
+        });
+      }
       
       // Add all available drives
       drives.forEach((drive) => {
@@ -170,22 +201,53 @@ export function getQuickNavPaths(): Array<{ path: string; label: string }> {
       
       return paths;
     }
-    case "darwin":
-      return [
+    case "darwin": {
+      // Add desktop path first if it exists
+      if (desktopPath) {
+        paths.push({
+          path: desktopPath,
+          label: "Desktop (桌面)",
+        });
+      }
+      
+      paths.push(
         { path: "/", label: "Root (/)" },
         { path: "/Volumes", label: "Volumes (External Drives)" },
-        { path: "/Users", label: "Users (Home Directories)" },
-      ];
-    case "linux":
-      return [
+        { path: "/Users", label: "Users (Home Directories)" }
+      );
+      
+      return paths;
+    }
+    case "linux": {
+      // Add desktop path first if it exists
+      if (desktopPath) {
+        paths.push({
+          path: desktopPath,
+          label: "Desktop (桌面)",
+        });
+      }
+      
+      paths.push(
         { path: "/", label: "Root (/)" },
         { path: "/mnt", label: "Mount (External Drives)" },
-        { path: "/home", label: "Home (User Directories)" },
-      ];
-    default:
-      return [
-        { path: "/", label: "Root (/)" },
-      ];
+        { path: "/home", label: "Home (User Directories)" }
+      );
+      
+      return paths;
+    }
+    default: {
+      // Add desktop path first if it exists
+      if (desktopPath) {
+        paths.push({
+          path: desktopPath,
+          label: "Desktop (桌面)",
+        });
+      }
+      
+      paths.push({ path: "/", label: "Root (/)" });
+      
+      return paths;
+    }
   }
 }
 
