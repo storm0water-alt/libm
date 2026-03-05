@@ -173,9 +173,15 @@ function Start-App {
     # Try ArchiveApp service first
     $archiveAppSvc = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
     if ($archiveAppSvc) {
+        # Check if already running
+        if ($archiveAppSvc.Status -eq "Running") {
+            Write-Host "  [OK] Already running" -ForegroundColor $Green
+            return
+        }
+
         Write-Host "  - Starting ArchiveApp service..." -ForegroundColor Gray
         try {
-            Start-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+            Start-Service -Name ArchiveApp -ErrorAction Stop
             Start-Sleep -Seconds 8
 
             if ((Get-PortStatus 3000) -eq "LISTENING") {
@@ -183,7 +189,7 @@ function Start-App {
                 return
             }
         } catch {
-            Write-Host "  - Service start failed, falling back to PM2" -ForegroundColor Yellow
+            Write-Host "  - Service start failed: $_, falling back to PM2" -ForegroundColor Yellow
         }
     }
 
@@ -226,12 +232,19 @@ function Stop-App {
     $archiveAppSvc = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
     if ($archiveAppSvc -and $archiveAppSvc.Status -eq "Running") {
         try {
-            Stop-Service -Name ArchiveApp -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 3
-            Write-Host "  [OK] Stopped via service" -ForegroundColor $Green
-            return
+            Stop-Service -Name ArchiveApp -Force -ErrorAction Stop
+            Start-Sleep -Seconds 2
+
+            # Verify service actually stopped
+            $archiveAppSvc = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+            if ($archiveAppSvc -and $archiveAppSvc.Status -ne "Running") {
+                Write-Host "  [OK] Stopped via service" -ForegroundColor $Green
+                return
+            } else {
+                Write-Host "  - Service still running, trying PM2" -ForegroundColor Yellow
+            }
         } catch {
-            Write-Host "  - Service stop failed, trying PM2" -ForegroundColor Yellow
+            Write-Host "  - Service stop failed: $_, trying PM2" -ForegroundColor Yellow
         }
     }
 
