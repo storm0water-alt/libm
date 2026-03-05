@@ -59,6 +59,80 @@ function Update-SessionEnvironment {
 }
 
 # ============================================================================
+# Helper function: Install ArchiveApp Windows Service
+# ============================================================================
+function Install-ArchiveAppService {
+    param(
+        [string]$ArchiveHome,
+        [string]$ServicesDir
+    )
+
+    Write-Host "  - Configuring ArchiveApp service..." -ForegroundColor Yellow
+
+    # Check if winsw.exe exists
+    $winswPath = Join-Path $ServicesDir "winsw.exe"
+    if (-not (Test-Path $winswPath)) {
+        Write-Host "  - Warning: winsw.exe not found at $winswPath" -ForegroundColor Yellow
+        Write-Host "  - ArchiveApp will not be installed as a service" -ForegroundColor Yellow
+        return $false
+    }
+
+    # Check if xml template exists
+    $xmlTemplate = Join-Path $ServicesDir "archive-app.xml"
+    if (-not (Test-Path $xmlTemplate)) {
+        Write-Host "  - Warning: archive-app.xml not found at $xmlTemplate" -ForegroundColor Yellow
+        return $false
+    }
+
+    # Generate resolved XML with actual paths
+    $xmlContent = Get-Content $xmlTemplate -Raw
+    $resolvedXml = Join-Path $ServicesDir "archive-app-resolved.xml"
+    $xmlContent = $xmlContent -replace '%ARCHIVE_HOME%', $ArchiveHome
+    $xmlContent = $xmlContent -replace '%APPDATA%', $env:APPDATA
+    $xmlContent | Set-Content $resolvedXml -Encoding UTF8
+
+    # Install service using winsw
+    try {
+        $installResult = & $winswPath install $resolvedXml 2>&1 | Out-Null
+    } catch {
+        Write-Host "  - Error: Failed to install service: $_" -ForegroundColor Red
+        return $false
+    }
+
+    # Verify service was created
+    $svc = Get-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+    if ($svc) {
+        Write-Host "  - ArchiveApp service installed" -ForegroundColor Green
+
+        # Configure to auto-start
+        sc.exe config ArchiveApp start= auto 2>&1 | Out-Null
+        sc.exe config ArchiveApp depend= Meilisearch 2>&1 | Out-Null
+
+        Write-Host "  - Dependency configured: Meilisearch -> ArchiveApp" -ForegroundColor Gray
+        Write-Host "  - ArchiveApp service start type: Automatic" -ForegroundColor Gray
+
+        # Start service
+        try {
+            Start-Service -Name ArchiveApp -ErrorAction SilentlyContinue
+            Write-Host "  - ArchiveApp service started" -ForegroundColor Green
+        } catch {
+            Write-Host "  - Warning: ArchiveApp service start failed: $_" -ForegroundColor Yellow
+        }
+
+        # Verify configuration was applied
+        $startMode = (Get-WmiObject Win32_Service | Where-Object {$_.Name -eq 'ArchiveApp' -and $_.StartMode -eq 'Automatic'}).StartMode
+        if ($startMode -eq 'Automatic') {
+            Write-Host "  - ArchiveApp is set to auto-start" -ForegroundColor Green
+        }
+
+        return $true
+    } else {
+        Write-Host "  - Warning: Failed to create ArchiveApp service" -ForegroundColor Yellow
+        return $false
+    }
+}
+
+# ============================================================================
 # Step 0: Select installation drive
 # ============================================================================
 Write-Host "[Step 0/8] Select installation drive..." -ForegroundColor Yellow
@@ -1001,8 +1075,46 @@ if (-not $postgresReady) {
 
 Write-Host ""
 
-# Start Application via PM2
-Write-Host "[3/3] Application..." -ForegroundColor Yellow
+# ============================================================================
+# Start Services (4 steps)
+# ============================================================================
+Write-Host "[Step 1/4] Starting PostgreSQL..." -ForegroundColor Yellow
+$PGService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
+if ($PGService) {
+    if ($PGService.Status -ne 'Running') {
+        Start-Service -Name PostgreSQL -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+    }
+    $PGService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
+    if ($PGService.Status -eq 'Running') {
+        Write-Host "  - PostgreSQL running" -ForegroundColor Green
+    } else {
+        Write-Host "  - PostgreSQL not running" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  - PostgreSQL service not found" -ForegroundColor Yellow
+}
+
+Write-Host ""
+Write-Host "[Step 2/4] Starting Meilisearch..." -ForegroundColor Yellow
+$MeiliService = Get-Service -Name Meilisearch -ErrorAction SilentlyContinue
+if ($MeiliService) {
+    if ($MeiliService.Status -ne 'Running') {
+        Start-Service -Name Meilisearch -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+    }
+    $MeiliService = Get-Service -Name Meilisearch -ErrorAction SilentlyContinue
+    if ($MeiliService.Status -eq 'Running') {
+        Write-Host "  - Meilisearch running" -ForegroundColor Green
+    } else {
+        Write-Host "  - Meilisearch not running" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  - Meilisearch service not found" -ForegroundColor Yellow
+}
+
+Write-Host ""
+Write-Host "[Step 3/4] Starting Application (PM2)..." -ForegroundColor Yellow
 
 if ($PM2Installed) {
     $pm2 = "$env:APPDATA\npm\pm2.cmd"
@@ -1056,6 +1168,13 @@ if ($PM2Installed) {
 } else {
     Write-Host "  - PM2 not installed" -ForegroundColor Red
 }
+
+Write-Host ""
+Write-Host "[Step 4/4] Installing ArchiveApp Service..." -ForegroundColor Yellow
+
+# Install ArchiveApp as Windows Service
+$ServicesDir = Join-Path $InstallPath "services"
+Install-ArchiveAppService -ArchiveHome $ArchiveHome -ServicesDir $ServicesDir
 
 # ============================================================================
 # Completion
