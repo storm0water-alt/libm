@@ -114,7 +114,7 @@ if (Test-Path "C:\Program Files\nodejs\node.exe") {
 # Check PM2 - only valid if Node.js is installed
 $PM2Installed = $false
 $pm2Path = "$env:APPDATA\npm\pm2.cmd"
-if (Test-Path $pm2Path -and $NodeInstalled) {
+if ((Test-Path $pm2Path) -and $NodeInstalled) {
     Write-Host "  - PM2: Installed" -ForegroundColor Green
     $PM2Installed = $true
 } elseif (Test-Path $pm2Path) {
