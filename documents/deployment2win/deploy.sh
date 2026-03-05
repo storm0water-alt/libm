@@ -120,6 +120,16 @@ done
 # 复制 PowerShell 脚本
 cp "${SCRIPT_DIR}/scripts/"*.ps1 "${STAGING_DIR}/scripts/"
 
+# 12.1 复制启动器相关文件
+echo "  - 复制启动器文件..."
+cp "${SCRIPT_DIR}/scripts/launcher.exe" "${STAGING_DIR}/scripts/"
+cp "${SCRIPT_DIR}/scripts/icon.ico" "${STAGING_DIR}/scripts/"
+mkdir -p "${STAGING_DIR}/scripts/tools"
+cp "${SCRIPT_DIR}/scripts/tools/ResourceHacker.exe" "${STAGING_DIR}/scripts/tools/"
+echo "    - launcher.exe (启动器)"
+echo "    - icon.ico (图标)"
+echo "    - tools/ResourceHacker.exe (图标工具)"
+
 # 13. 复制服务配置和数据库脚本
 cp "${SCRIPT_DIR}/services/"*.json "${STAGING_DIR}/services/"
 cp "${SCRIPT_DIR}/init-data/"*.sql "${STAGING_DIR}/init-data/"
@@ -166,10 +176,12 @@ echo "  - node_modules (来自 standalone 构建)"
 echo "  - .next/static 静态资源"
 echo "  - public 静态资源"
 echo "  - 配置文件和运维脚本"
+echo "  - launcher.exe 启动器 + 图标工具"
 echo ""
 echo "部署步骤:"
 echo "  1. 解压 archive-management-${VERSION}.zip"
 echo "  2. 将 PostgreSQL/Node.js/Meilisearch 安装包放入 packages/"
 echo "  3. 以管理员身份运行 scripts\\install.bat"
-echo "  4. 运行 scripts\\start.bat 启动服务"
+echo "  4. 双击 scripts\\add-icon.bat 添加启动器图标 (可选)"
+echo "  5. 双击 launcher.exe 启动系统"
 echo ""

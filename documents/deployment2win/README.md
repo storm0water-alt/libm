@@ -549,3 +549,49 @@ bash deploy.sh
 6. **Prisma**：node_modules 已完整打包，支持离线运行
 7. **日志位置**：所有日志保存在 `logs\` 目录
 8. **数据备份**：定期运行 `backup.bat` 保护数据
+
+---
+
+## 快速启动工具
+
+为了方便用户在 Windows 重启后快速启动系统，我们提供了一个轻量级启动器。
+
+### 使用方法
+
+双击 `scripts\launcher.exe`，程序会自动：
+
+1. 检测 Node.js 是否安装
+2. 检测并启动 PostgreSQL
+3. 检测并启动 Meilisearch
+4. 检测并启动应用服务
+5. 自动打开浏览器访问 http://127.0.0.1:3000
+
+### 输出示例
+
+```
+========================================
+    档案管理系统启动器 v1.0
+========================================
+
+[1/4] Node.js...        [OK] v22.22.0
+[2/4] PostgreSQL...     [OK] 已运行
+[3/4] Meilisearch...    未运行 -> 启动中... [OK]
+[4/4] 应用服务...       未运行 -> 启动中... [OK]
+
+等待服务就绪...
+服务已就绪，正在打开浏览器...
+
+按任意键退出...
+```
+
+### 创建桌面快捷方式
+
+用户可以右键 `launcher.exe` → 发送到 → 桌面快捷方式，方便日常使用。
+
+### 重新编译（macOS）
+
+```bash
+cd documents/deployment2win
+docker run --rm -v "$(pwd):/work" -w /work/launcher golang:1.21-alpine \
+  sh -c "GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags='-s -w' -o /work/scripts/launcher.exe main.go"
+```
