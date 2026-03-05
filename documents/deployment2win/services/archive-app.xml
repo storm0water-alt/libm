@@ -1,0 +1,39 @@
+<service>
+  <id>ArchiveApp</id>
+  <name>Archive Management Application</name>
+  <description>档案管理系统 Web 应用</description>
+
+  <!-- 使用 PM2 启动应用 -->
+  <executable>cmd.exe</executable>
+  <arguments>/c "%APPDATA%\npm\pm2.cmd" start "%ARCHIVE_HOME%\app\ecosystem.config.js"</arguments>
+
+  <!-- 工作目录 -->
+  <workingdirectory>%ARCHIVE_HOME%\app</workingdirectory>
+
+  <!-- 日志配置 -->
+  <logpath>%ARCHIVE_HOME%\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+
+  <!-- 服务依赖 -->
+  <depend>Meilisearch</depend>
+
+  <!-- 自动启动 -->
+  <startmode>Automatic</startmode>
+
+  <!-- 失败恢复策略 -->
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="20 sec"/>
+  <onfailure action="none"/>
+
+  <!-- 1小时后重置失败计数 -->
+  <resetfailure>1 hour</resetfailure>
+
+  <!-- 停止超时 -->
+  <stoptimeout>30 sec</stoptimeout>
+
+  <!-- 环境变量 -->
+  <env name="NODE_ENV" value="production"/>
+</service>
