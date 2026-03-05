@@ -84,12 +84,17 @@ Write-Host ""
 # ============================================================================
 Write-Host "[Step 1/8] Checking components..." -ForegroundColor Yellow
 
-# Check PostgreSQL
+# Check PostgreSQL - must have both service AND binaries
 $PGInstalled = $false
 $PGService = Get-Service -Name "PostgreSQL" -ErrorAction SilentlyContinue
-if ($PGService) {
-    Write-Host "  - PostgreSQL: Service exists" -ForegroundColor Green
+$PGBinaryExists = Test-Path "C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe"
+
+if ($PGService -and $PGBinaryExists) {
+    Write-Host "  - PostgreSQL: Installed (service exists)" -ForegroundColor Green
     $PGInstalled = $true
+} elseif ($PGService -and -not $PGBinaryExists) {
+    Write-Host "  - PostgreSQL: Service exists but binaries missing (incomplete uninstall)" -ForegroundColor Yellow
+    # Will be cleaned up in Step 4
 } elseif (Test-Path "C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe") {
     Write-Host "  - PostgreSQL: Installed (no service)" -ForegroundColor Yellow
     $PGInstalled = $true  # Binary exists, just need to create service
@@ -102,35 +107,40 @@ $NodeInstalled = $false
 if (Test-Path "C:\Program Files\nodejs\node.exe") {
     Write-Host "  - Node.js: Installed" -ForegroundColor Green
     $NodeInstalled = $true
+} else {
+    Write-Host "  - Node.js: Not found" -ForegroundColor Gray
 }
 
-# Check PM2
+# Check PM2 - only valid if Node.js is installed
 $PM2Installed = $false
 $pm2Path = "$env:APPDATA\npm\pm2.cmd"
-if (Test-Path $pm2Path) {
+if (Test-Path $pm2Path -and $NodeInstalled) {
     Write-Host "  - PM2: Installed" -ForegroundColor Green
     $PM2Installed = $true
+} elseif (Test-Path $pm2Path) {
+    Write-Host "  - PM2: Installed but Node.js missing (unusable)" -ForegroundColor Yellow
+} else {
+    Write-Host "  - PM2: Not found" -ForegroundColor Gray
 }
 
-# Check Meilisearch
+# Check Meilisearch - must have both service AND executable
 $MeiliInstalled = $false
 $MeiliServiceExists = $false
 $MeiliService = Get-Service -Name "Meilisearch" -ErrorAction SilentlyContinue
-if ($MeiliService) {
-    Write-Host "  - Meilisearch: Service exists ($($MeiliService.Status))" -ForegroundColor Green
+$MeiliBinaryExists = Test-Path "C:\Program Files\Meilisearch\meilisearch.exe"
+
+if ($MeiliService -and $MeiliBinaryExists) {
+    Write-Host "  - Meilisearch: Installed (service exists, $($MeiliService.Status))" -ForegroundColor Green
     $MeiliServiceExists = $true
     $MeiliInstalled = $true
-} elseif (Test-Path "C:\Program Files\Meilisearch\meilisearch.exe") {
+} elseif ($MeiliService -and -not $MeiliBinaryExists) {
+    Write-Host "  - Meilisearch: Service exists but executable missing (incomplete uninstall)" -ForegroundColor Yellow
+    # Will be cleaned up in Step 7
+} elseif ($MeiliBinaryExists) {
     Write-Host "  - Meilisearch: Installed (no service)" -ForegroundColor Yellow
     $MeiliInstalled = $true
-} elseif (Test-Path "C:\Program Files\Meilisearch\meilisearch.exe") {
-    Write-Host "  - Meilisearch: Installed (no service)" -ForegroundColor Yellow
-    $MeiliInstalled = $true
-    $MeiliServiceExists = $false
 } else {
     Write-Host "  - Meilisearch: Not found" -ForegroundColor Gray
-    $MeiliInstalled = $false
-    $MeiliServiceExists = $false
 }
 
 # Check for packages
@@ -307,10 +317,22 @@ $PGService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
 $PGBinaryExists = Test-Path "$PGPath\bin\pg_ctl.exe"
 $DataInitialized = Test-Path "$PGDataPath\PG_VERSION"
 
-# Layer 1: Service exists -> Skip entire installation
-if ($PGService) {
+# Check if PostgreSQL is truly installed (service exists AND binaries exist)
+# After uninstallation, service may remain but binaries are gone
+$PGTrulyInstalled = $PGService -and $PGBinaryExists
+
+if ($PGTrulyInstalled) {
     Write-Host "  - PostgreSQL service exists ($($PGService.Status))" -ForegroundColor Green
 } else {
+    # Service exists but binaries missing - this indicates incomplete uninstallation
+    if ($PGService -and -not $PGBinaryExists) {
+        Write-Host "  - PostgreSQL service exists but binaries not found (incomplete uninstallation)" -ForegroundColor Yellow
+        Write-Host "  - Removing orphaned service..." -ForegroundColor Gray
+        Stop-Service -Name PostgreSQL -Force -ErrorAction SilentlyContinue
+        & sc.exe delete PostgreSQL 2>&1 | Out-Null
+        Start-Sleep -Seconds 2
+        $PGService = $null
+    }
     # Layer 2: Binary not exists -> Install from packages
     if (-not $PGBinaryExists) {
         Write-Host "  - PostgreSQL not installed, checking for installer..." -ForegroundColor Yellow
@@ -528,17 +550,26 @@ if ($NodeInstalled) {
 } else {
     $NodeExe = Get-ChildItem -Path $PackagesPath -Filter "nodejs-*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($NodeExe) {
-        Write-Host "  - Installing Node.js..." -ForegroundColor Yellow
-        Start-Process -FilePath "msiexec.exe" -ArgumentList "/i", $NodeExe.FullName, "/quiet", "/norestart" -Wait -NoNewWindow
+        Write-Host "  - Found installer: $($NodeExe.Name)" -ForegroundColor Gray
+        Write-Host "  - Installing Node.js (this may take a minute)..." -ForegroundColor Yellow
+
+        $installResult = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i", $NodeExe.FullName, "/quiet", "/norestart" -Wait -NoNewWindow -PassThru
+        $exitCode = $installResult.ExitCode
 
         if (Test-Path "C:\Program Files\nodejs\node.exe") {
-            Write-Host "  - Node.js installed" -ForegroundColor Green
+            Write-Host "  - Node.js installed successfully" -ForegroundColor Green
             $NodeInstalled = $true
 
             # Refresh environment variables so node/npm are available in current session
             Write-Host "  - Refreshing environment variables..." -ForegroundColor Gray
             Update-SessionEnvironment
+        } else {
+            Write-Host "  - ERROR: Node.js installation failed (exit code: $exitCode)" -ForegroundColor Red
+            Write-Host "    Binary not found at: C:\Program Files\nodejs\node.exe" -ForegroundColor Yellow
         }
+    } else {
+        Write-Host "  - ERROR: Node.js installer not found in: $PackagesPath" -ForegroundColor Red
+        Write-Host "    Expected file pattern: nodejs-*.msi" -ForegroundColor Yellow
     }
 }
 
@@ -550,24 +581,36 @@ Write-Host "[Step 6/8] Configuring PM2..." -ForegroundColor Yellow
 
 if ($PM2Installed) {
     Write-Host "  - PM2 is installed" -ForegroundColor Gray
+} elseif (-not $NodeInstalled) {
+    Write-Host "  - ERROR: Cannot install PM2 - Node.js is not installed" -ForegroundColor Red
+    Write-Host "    Please ensure Node.js installation succeeded in Step 5" -ForegroundColor Yellow
 } else {
     $npmPath = "C:\Program Files\nodejs\npm.cmd"
     if (Test-Path $npmPath) {
         Write-Host "  - Installing PM2..." -ForegroundColor Yellow
 
-        # Use Chinese mirror
+        # Use Chinese mirror for faster download
         & $npmPath config set registry https://registry.npmmirror.com 2>$null | Out-Null
-        & $npmPath install -g pm2 2>$null | Out-Null
+        $pm2Result = & $npmPath install -g pm2 2>&1 | Out-String
         & $npmPath config set registry https://registry.npmjs.org 2>$null | Out-Null
 
         if (Test-Path "$env:APPDATA\npm\pm2.cmd") {
-            Write-Host "  - PM2 installed" -ForegroundColor Green
+            Write-Host "  - PM2 installed successfully" -ForegroundColor Green
             $PM2Installed = $true
 
             # Refresh environment variables so pm2 is available in current session
             Write-Host "  - Refreshing environment variables..." -ForegroundColor Gray
             Update-SessionEnvironment
+        } else {
+            Write-Host "  - ERROR: PM2 installation failed" -ForegroundColor Red
+            Write-Host "    pm2.cmd not found at: $env:APPDATA\npm\pm2.cmd" -ForegroundColor Yellow
+            if ($pm2Result) {
+                Write-Host "    npm output: $pm2Result" -ForegroundColor Gray
+            }
         }
+    } else {
+        Write-Host "  - ERROR: npm not found at: $npmPath" -ForegroundColor Red
+        Write-Host "    Node.js installation may have failed" -ForegroundColor Yellow
     }
 }
 
@@ -579,15 +622,30 @@ Write-Host "[Step 7/8] Configuring Meilisearch..." -ForegroundColor Yellow
 
 $MeiliPath = "C:\Program Files\Meilisearch\meilisearch.exe"
 $MeiliService = Get-Service -Name Meilisearch -ErrorAction SilentlyContinue
+$MeiliBinaryExists = Test-Path $MeiliPath
 
-# Check if service already exists
-if ($MeiliService) {
+# Check if Meilisearch is truly installed (service exists AND executable exists)
+# After uninstallation, service may remain but executable is gone
+$MeiliTrulyInstalled = $MeiliService -and $MeiliBinaryExists
+
+if ($MeiliTrulyInstalled) {
     Write-Host "  - Meilisearch service exists ($($MeiliService.Status))" -ForegroundColor Green
 } else {
+    # Service exists but executable missing - this indicates incomplete uninstallation
+    if ($MeiliService -and -not $MeiliBinaryExists) {
+        Write-Host "  - Meilisearch service exists but executable not found (incomplete uninstallation)" -ForegroundColor Yellow
+        Write-Host "  - Removing orphaned service..." -ForegroundColor Gray
+        Stop-Service -Name Meilisearch -Force -ErrorAction SilentlyContinue
+        & sc.exe delete Meilisearch 2>&1 | Out-Null
+        Start-Sleep -Seconds 2
+        $MeiliService = $null
+    }
+
     # Check if executable exists
     if (-not (Test-Path $MeiliPath)) {
         $MeiliExe = Get-ChildItem -Path $PackagesPath -Filter "meilisearch*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($MeiliExe) {
+            Write-Host "  - Found installer: $($MeiliExe.Name)" -ForegroundColor Gray
             Write-Host "  - Installing Meilisearch executable..." -ForegroundColor Yellow
 
             if (-not (Test-Path "C:\Program Files\Meilisearch")) {
@@ -597,7 +655,8 @@ if ($MeiliService) {
             Copy-Item -Path $MeiliExe.FullName -Destination $MeiliPath -Force
             Write-Host "  - Meilisearch executable installed" -ForegroundColor Green
         } else {
-            Write-Host "  - Meilisearch executable not found in packages" -ForegroundColor Red
+            Write-Host "  - ERROR: Meilisearch executable not found in: $PackagesPath" -ForegroundColor Red
+            Write-Host "    Expected file pattern: meilisearch*.exe" -ForegroundColor Yellow
         }
     } else {
         Write-Host "  - Meilisearch executable exists" -ForegroundColor Gray
