@@ -81,6 +81,16 @@ D:\ArchiveManagement\          (或 E:\, F:\ 等)
 | `nodejs-v22.22.0-x64.msi` | Node.js 安装程序 |
 | `meilisearch-windows-amd64.exe` | Meilisearch 可执行文件 |
 
+### 可选：winsw.exe
+
+如需将 App 注册为 Windows 服务（开机自启），请下载 winsw.exe：
+
+1. 访问 https://github.com/winsw/winsw/releases
+2. 下载 `WinSW-x64.exe`
+3. 重命名为 `winsw.exe` 并放入 `services/` 目录
+
+> 如果不提供 winsw.exe，App 将使用 PM2 管理，需要手动配置开机自启。
+
 ### 2. 执行安装
 
 以 **管理员身份** 运行 PowerShell 或 CMD：
@@ -115,12 +125,38 @@ cd D:\ArchiveManagement
 
 ## 服务管理
 
+### 自动启动服务
+
+安装完成后，以下服务会自动注册为 Windows 服务，开机自动启动：
+
+| 服务 | 说明 | 依赖 |
+|------|------|------|
+| PostgreSQL | 数据库服务 | 无 |
+| Meilisearch | 搜索引擎 | PostgreSQL |
+| ArchiveApp | Web 应用 | Meilisearch |
+
+### 手动管理
+
 | 命令 | 说明 |
 |------|------|
-| `start.bat` | 启动所有服务 (PG → Meilisearch → 应用) |
+| `start.bat` | 启动所有服务 |
 | `stop.bat` | 停止所有服务 |
-| `backup.bat` | 备份数据库到 `[盘符]:\ArchiveBackups` |
-| `upgrade.bat` | 版本升级 |
+| `status.bat` | 查看服务状态 |
+
+### Windows 服务管理
+
+也可以使用 Windows 原生命令管理：
+
+```cmd
+# 查看服务状态
+sc query PostgreSQL
+sc query Meilisearch
+sc query ArchiveApp
+
+# 手动启动/停止
+net start ArchiveApp
+net stop ArchiveApp
+```
 
 ## 数据库备份
 
