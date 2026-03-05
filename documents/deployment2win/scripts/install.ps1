@@ -291,32 +291,82 @@ if ($PGService) {
             )
 
             try {
-                # Use Job with timeout to prevent hanging on PostgreSQL installer
-                # The installer may spawn child processes that don't exit properly
-                $installJob = Start-Job -ScriptBlock {
-                    param($installerPath, $argsList)
-                    Start-Process -FilePath $installerPath -ArgumentList $argsList -Wait -NoNewWindow
-                } -ArgumentList $pgInstaller.FullName, $installArgs
+                # Start installer with PassThru to get process info
+                $installProcess = Start-Process -FilePath $pgInstaller.FullName -ArgumentList $installArgs -PassThru -NoNewWindow
+                $installerPid = $installProcess.Id
+                Write-Host "  - Installer started (PID: $installerPid)" -ForegroundColor Gray
 
-                # Wait up to 5 minutes (300 seconds)
+                # Monitor installation progress with transparency
                 $timeoutSeconds = 300
-                if (Wait-Job $installJob -Timeout $timeoutSeconds) {
-                    $jobResult = Receive-Job $installJob
-                    Write-Host "  - Installation process completed" -ForegroundColor Green
-                } else {
-                    Write-Host "  - Installation timeout ($timeoutSeconds seconds), checking installation status..." -ForegroundColor Yellow
-                    Stop-Job $installJob
+                $elapsedSeconds = 0
+                $checkInterval = 3
+                $lastFileCount = 0
+
+                Write-Host "  - Monitoring installation progress..." -ForegroundColor Gray
+
+                while ($elapsedSeconds -lt $timeoutSeconds) {
+                    Start-Sleep -Seconds $checkInterval
+                    $elapsedSeconds += $checkInterval
+
+                    # Check if installer process is still running (including child processes)
+                    $installerRunning = Get-Process -Id $installerPid -ErrorAction SilentlyContinue
+                    $childProcesses = Get-CimInstance Win32_Process | Where-Object {
+                        $_.ParentProcessId -eq $installerPid -or $_.Name -like "*postgresql*" -or $_.Name -like "*setup*"
+                    } | Where-Object { $_.ProcessId -ne $PID }
+
+                    # Count files in installation directory
+                    $currentFileCount = 0
+                    if (Test-Path $PGPath) {
+                        $currentFileCount = (Get-ChildItem -Path $PGPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+                    }
+
+                    # Build status message
+                    $statusParts = @()
+                    if ($installerRunning) {
+                        $statusParts += "installer running"
+                    }
+                    if ($childProcesses) {
+                        $statusParts += "$($childProcesses.Count) child process(es)"
+                    }
+                    if ($currentFileCount -gt 0) {
+                        $fileChange = if ($currentFileCount -gt $lastFileCount) { "+$($currentFileCount - $lastFileCount)" } else { "" }
+                        $statusParts += "$currentFileCount files $fileChange"
+                    }
+                    $statusMsg = $statusParts -join " | "
+
+                    # Show progress
+                    $remainingTime = $timeoutSeconds - $elapsedSeconds
+                    if ($statusMsg) {
+                        Write-Host "    [$elapsedSeconds/${timeoutSeconds}s] $statusMsg" -ForegroundColor DarkGray
+                    } else {
+                        Write-Host "    [$elapsedSeconds/${timeoutSeconds}s] Waiting..." -ForegroundColor DarkGray
+                    }
+
+                    $lastFileCount = $currentFileCount
+
+                    # Check if installation is complete (bin + lib ready)
+                    $binReady = Test-Path "$PGPath\bin\pg_ctl.exe"
+                    $libReady = Test-Path "$PGPath\lib\dict_snowball.dll"
+                    if ($binReady -and $libReady -and -not $installerRunning) {
+                        Write-Host "  - Installation completed at ${elapsedSeconds}s" -ForegroundColor Green
+                        break
+                    }
                 }
 
-                Remove-Job $installJob -Force -ErrorAction SilentlyContinue
+                # Final verification
+                if ($elapsedSeconds -ge $timeoutSeconds) {
+                    Write-Host "  - Installation timeout reached, verifying files..." -ForegroundColor Yellow
+                }
 
-                # Give installer a moment to finish file operations
-                Start-Sleep -Seconds 3
-
-                # Verify installation by checking binary existence (regardless of timeout)
+                # Verify installation by checking BOTH bin and lib directories
                 $PGBinaryExists = Test-Path "$PGPath\bin\pg_ctl.exe"
-                if ($PGBinaryExists) {
-                    Write-Host "  - PostgreSQL binaries verified" -ForegroundColor Green
+                $LibExists = Test-Path "$PGPath\lib\dict_snowball.dll"
+                if ($PGBinaryExists -and $LibExists) {
+                    $finalFileCount = (Get-ChildItem -Path $PGPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+                    Write-Host "  - PostgreSQL installation verified ($finalFileCount files)" -ForegroundColor Green
+                } elseif ($PGBinaryExists) {
+                    Write-Host "  - Warning: PostgreSQL binaries exist but lib directory incomplete" -ForegroundColor Yellow
+                    Write-Host "    This may cause initdb to fail. Please reinstall PostgreSQL manually." -ForegroundColor Yellow
                 } else {
                     Write-Host "  - Warning: PostgreSQL binaries not found after installation" -ForegroundColor Yellow
                 }
