@@ -683,7 +683,10 @@ if ($MeiliTrulyInstalled) {
         # Create service
         $binPath = "`"$MeiliPath`" --master-key=`"$MeiliKey`" --db-path=`"$ArchiveHome\data\meilisearch`" --http-addr=`"localhost:7700`""
 
-        sc.exe create Meilisearch binPath= $binPath start= demand DisplayName= "Meilisearch Search Engine" 2>&1 | Out-Null
+        sc.exe create Meilisearch binPath= $binPath start= auto DisplayName= "Meilisearch Search Engine" 2>&1 | Out-Null
+
+        # Configure dependency on PostgreSQL
+        sc.exe config Meilisearch depend= PostgreSQL 2>&1 | Out-Null
 
         Start-Sleep -Seconds 2
 
