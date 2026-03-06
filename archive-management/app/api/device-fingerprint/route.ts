@@ -4,7 +4,8 @@ import { promisify } from 'util';
 import { readFileSync } from 'fs';
 import os from 'os';
 
-const execAsync = promisify(exec);
+// Wrap exec with windowsHide option to prevent console windows on Windows
+const execAsync = (command: string) => promisify(exec)(command, { windowsHide: true });
 
 export const runtime = 'nodejs';
 
