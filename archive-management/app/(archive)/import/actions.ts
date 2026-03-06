@@ -436,10 +436,10 @@ export async function getImportConfigAction() {
 export async function uploadCsvAction(formData: FormData) {
   const session = await auth();
 
-  if (!session?.user || (session.user.role !== "admin" && session.user.role !== "管理员")) {
+  if (!session?.user) {
     return {
       success: false,
-      error: "权限不足",
+      error: "未登录",
     };
   }
 
