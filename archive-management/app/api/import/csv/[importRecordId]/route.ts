@@ -14,11 +14,11 @@ export async function POST(request: Request) {
 
     const session = await auth();
 
-    if (!session?.user || (session.user.role !== "admin" && session.user.role !== "管理员")) {
-      console.error('[CSV Import API] Permission denied for user:', session?.user);
+    if (!session?.user) {
+      console.error('[CSV Import API] Unauthorized');
       return NextResponse.json(
-        { error: '权限不足' },
-        { status: 403 }
+        { error: '未登录' },
+        { status: 401 }
       );
     }
 
@@ -93,11 +93,11 @@ export async function GET(
 
     console.log('[CSV Import API] GET session:', session?.user?.username);
 
-    if (!session?.user || (session.user.role !== "admin" && session.user.role !== "管理员")) {
-      console.error('[CSV Import API] GET Permission denied');
+    if (!session?.user) {
+      console.error('[CSV Import API] GET Unauthorized');
       return NextResponse.json(
-        { error: '权限不足' },
-        { status: 403 }
+        { error: '未登录' },
+        { status: 401 }
       );
     }
 
