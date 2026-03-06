@@ -1,7 +1,7 @@
 /**
  * Admin-only routes that require admin role
  */
-const ADMIN_ROUTES = ["/users", "/import", "/config"];
+const ADMIN_ROUTES = ["/users", "/config"];
 
 /**
  * Check if a given path requires admin access

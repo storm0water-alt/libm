@@ -16,11 +16,11 @@ export async function GET(request: NextRequest) {
   const session = await auth();
   console.log("[Browse] Session:", session ? { user: session.user.username, role: session.user.role } : null);
 
-  if (!session || session.user.role !== "admin") {
-    console.log("[Browse] Forbidden - not admin");
+  if (!session) {
+    console.log("[Browse] Unauthorized - no session");
     return NextResponse.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 }
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
     );
   }
 

@@ -9,10 +9,10 @@ import {
 export async function GET() {
   const session = await auth();
 
-  if (!session || session.user.role !== "admin") {
+  if (!session) {
     return NextResponse.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 }
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
     );
   }
 

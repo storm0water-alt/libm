@@ -37,13 +37,6 @@ export async function scanFolderAction(
     };
   }
 
-  if (session.user.role !== "admin") {
-    return {
-      success: false,
-      error: "Forbidden: Admin access required",
-    };
-  }
-
   try {
     const files = await importService.scanFolder(folderPath, {
       maxDepth: options?.maxDepth ?? 10,
@@ -78,13 +71,6 @@ export async function clearScanCacheAction(folderPath?: string) {
     };
   }
 
-  if (session.user.role !== "admin") {
-    return {
-      success: false,
-      error: "Forbidden: Admin access required",
-    };
-  }
-
   try {
     importService.clearScanCache(folderPath);
     return {
@@ -111,13 +97,6 @@ export async function startImportAction(filePaths: Array<{ name: string; path: s
     return {
       success: false,
       error: "Unauthorized",
-    };
-  }
-
-  if (session.user.role !== "admin") {
-    return {
-      success: false,
-      error: "Forbidden: Admin access required",
     };
   }
 
@@ -237,13 +216,6 @@ export async function cancelImportAction(recordId: string) {
     return {
       success: false,
       error: "Unauthorized",
-    };
-  }
-
-  if (session.user.role !== "admin") {
-    return {
-      success: false,
-      error: "Forbidden: Admin access required",
     };
   }
 
@@ -391,13 +363,6 @@ export async function setConcurrencyAction(concurrency: number) {
     return {
       success: false,
       error: "Unauthorized",
-    };
-  }
-
-  if (session.user.role !== "admin") {
-    return {
-      success: false,
-      error: "Forbidden: Admin access required",
     };
   }
 
