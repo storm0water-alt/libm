@@ -17,13 +17,15 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
+// Default secret key for license encryption (shared across all environments)
+// This ensures activation codes work across different devices/servers
+const DEFAULT_LICENSE_SECRET = "m38j06v9UJg3H9gJWGDSQ3Pq9ffmtSNg50jmwG/iG+U=";
+
 // Get or generate secret key for encryption
 function getSecretKey(): Buffer {
-  const key = process.env.LICENSE_SECRET_KEY;
-  if (!key) {
-    // Fallback to a default key for development (not recommended for production)
-    console.warn("LICENSE_SECRET_KEY not set, using default key for development");
-    return Buffer.from("default-license-secret-key-32-bytes-long".substring(0, 32));
+  const key = process.env.LICENSE_SECRET_KEY || DEFAULT_LICENSE_SECRET;
+  if (!process.env.LICENSE_SECRET_KEY) {
+    console.warn("[License] LICENSE_SECRET_KEY not set, using default shared key");
   }
   // Ensure key is exactly 32 bytes for AES-256
   return Buffer.from(createHash("sha256").update(key).digest().subarray(0, 32));
@@ -89,14 +91,15 @@ export class LicenseService {
     ]);
 
     // Base64 encode and format for readability
+    // Use URL-safe base64 (+ → -, / → _) and use "." as separator to avoid conflict
+    // NOTE: Do NOT use toUpperCase() as it would corrupt the base64 encoding (lowercase letters)
     return combined
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=/g, "")
-      .toUpperCase()
       .match(/.{1,4}/g)!
-      .join("-");
+      .join(".");
   }
 
   /**
@@ -106,10 +109,20 @@ export class LicenseService {
   validateAuthCode(authCode: string): ValidateAuthCodeResult {
     try {
       // Clean and parse auth code
-      const cleaned = authCode.replace(/-/g, "").toLowerCase();
-      const combined = Buffer.from(cleaned + "==", "base64");
+      // 1. Remove "." separators (used for readability)
+      // 2. Reverse URL-safe base64: - → +, _ → /
+      // 3. Add proper base64 padding
+      const cleaned = authCode
+        .replace(/\./g, "")      // Remove "." separators
+        .replace(/-/g, "+")      // URL-safe: - → +
+        .replace(/_/g, "/");     // URL-safe: _ → /
+
+      // Add proper base64 padding
+      const padded = cleaned + "=".repeat((4 - (cleaned.length % 4)) % 4);
+      const combined = Buffer.from(padded, "base64");
 
       if (combined.length < IV_LENGTH + AUTH_TAG_LENGTH) {
+        console.error("[License] Auth code too short:", combined.length);
         return { valid: false };
       }
 
@@ -132,7 +145,10 @@ export class LicenseService {
         durationDays: payload.durationDays,
       };
     } catch (error) {
-      console.error("Auth code validation failed:", error);
+      // Provide detailed error message for debugging
+      const keySource = process.env.LICENSE_SECRET_KEY ? "custom key" : "default development key";
+      console.error(`[License] Auth code validation failed (using ${keySource}):`, error instanceof Error ? error.message : error);
+      console.error("[License] If activation fails, ensure LICENSE_SECRET_KEY is identical on both admin and user servers");
       return { valid: false };
     }
   }

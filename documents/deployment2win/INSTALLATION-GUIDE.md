@@ -5,8 +5,8 @@
 | 项目 | 最低要求 |
 |------|----------|
 | 操作系统 | Windows Server 2019+ / Windows 10+ |
-| 内存 | 8GB+ |
-| 磁盘 | 10GB+ |
+| 内存 | 16GB+ |
+| 磁盘 | 500GB+ |
 | 权限 | **管理员** |
 | 运行浏览器 | Chrome |
 
@@ -25,7 +25,7 @@
 ### 2. 目录结构
 
 ```
-D:\ArchiveManagement\
+D:\archive-management-v20260305153221-offline\
 ├── packages/           # 安装包 (上述3个文件)
 ├── scripts/
 │   └── install.bat     # 安装入口
@@ -42,13 +42,13 @@ D:\ArchiveManagement\
 以**管理员身份**运行 CMD 或 PowerShell：
 
 ```cmd
-cd D:\ArchiveManagement
+cd D:\archive-management-v20260305153221-offline\
 .\scripts\install.bat
 ```
 
-### 安装流程
+### 一键安装流程
 
-`install.bat` 调用 `install.ps1`，执行 8 个步骤：
+`install.bat` 执行 8 个步骤：
 
 | 步骤 | 操作 |
 |------|------|
@@ -76,6 +76,10 @@ cd D:\ArchiveManagement
 进入安装目录的 scripts
 .\toolkit.bat start app     # 启动服务
 .\toolkit.bat stop app     # 停止服务    
+.\toolkit.bat status     # 查看服务状态      
+.\toolkit.bat health     # 查看服务健康   
+# 查看端口
+netstat -an | findstr ":3000 :5432 :7700"
 ```
 
 ## 端口
@@ -86,16 +90,31 @@ cd D:\ArchiveManagement
 | 5432 | PostgreSQL |
 | 7700 | Meilisearch |
 
-## 故障排查
+## 许可证管理
 
-```cmd
-# 查看端口
-netstat -an | findstr ":3000 :5432 :7700"
+### 配置 LICENSE_SECRET_KEY (重要!)
 
-# 查看服务
-net start | findstr "PostgreSQL Meilisearch"
+许可证激活码的加密密钥，用于保护授权码的安全性。 所有需要共享激活码的服务器实例**必须配置相同的密钥**.
 
-# PM2 状态
-%APPDATA%\npm\pm2 status
-%APPDATA%\npm\pm2 logs archive-management
-```
+配置步骤:
+1. 生成一个安全的随机密钥:
+   ```cmd
+   openssl rand -base64 32
+   ```
+2. 编辑 `%ARCHIVE_HOME%\config\.env` 文件
+3. 设置 `LICENSE_SECRET_KEY=<生成的密钥>`
+4. 重启服务:
+   ```cmd
+   cd %ARCHIVE_HOME%\scripts
+   .\toolkit.bat restart app
+   ```
+
+> **注意**: 如果密钥不一致,激活码验证会失败！
+
+## 安装步骤总结
+部署步骤:
+1. 解压 archive-management-v2026xxxxxxx-offline.zip
+2. 将 PostgreSQL/Node.js/Meilisearch 安装包放入 packages/
+3. 以管理员身份运行 scripts\install.bat
+4. 双击 scripts\add-icon.bat 为 launcher.exe 添加启动器图标 (可选)
+5. 右键为 launcher.exe 创建快捷方式

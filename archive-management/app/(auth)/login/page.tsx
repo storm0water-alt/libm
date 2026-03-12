@@ -7,16 +7,56 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'url(/login-bg.jpg) center center / cover no-repeat',
-      padding: '20px'
+      background: 'linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 50%, #e0e7ff 100%)',
+      padding: '20px',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
+      {/* SVG 网格背景 */}
+      <svg
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 0
+        }}
+      >
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(148, 163, 184, 0.15)" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+      </svg>
+
+      {/* 装饰性圆形元素 */}
+      <svg
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 0
+        }}
+      >
+        <circle cx="10%" cy="20%" r="120" fill="rgba(99, 102, 241, 0.05)" />
+        <circle cx="90%" cy="80%" r="180" fill="rgba(139, 92, 246, 0.05)" />
+        <circle cx="85%" cy="15%" r="80" fill="rgba(59, 130, 246, 0.05)" />
+      </svg>
       <div style={{
         background: 'white',
         borderRadius: '16px',
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
         width: '100%',
         maxWidth: '420px',
-        padding: '40px'
+        padding: '40px',
+        position: 'relative',
+        zIndex: 1
       }}>
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div style={{
