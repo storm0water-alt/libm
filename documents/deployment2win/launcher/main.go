@@ -166,11 +166,23 @@ func checkNodeJS() bool {
 
 // ==================== PostgreSQL ====================
 
+// isPostgreSQLServiceRunning 检查 PostgreSQL Windows 服务是否正在运行
+func isPostgreSQLServiceRunning() bool {
+	cmd := exec.Command("sc", "query", "PostgreSQL")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	// 检查服务状态是否为 RUNNING
+	return strings.Contains(string(output), "RUNNING")
+}
+
 func checkAndStartPostgreSQL() {
 	printStep(2, 4, "PostgreSQL")
 
-	// 检查端口
-	if isPortListening(PgPort) {
+	// 检查 Windows 服务状态 (参考 toolkit.ps1 的检测逻辑)
+	if isPostgreSQLServiceRunning() {
 		printOK()
 		return
 	}
@@ -185,7 +197,7 @@ func checkAndStartPostgreSQL() {
 	// 等待
 	for i := 0; i < 10; i++ {
 		time.Sleep(1 * time.Second)
-		if isPortListening(PgPort) {
+		if isPostgreSQLServiceRunning() {
 			printOK()
 			return
 		}
@@ -340,7 +352,8 @@ func showFinalStatus() {
 	fmt.Println("服务状态")
 	fmt.Println("========================================")
 
-	pgOK := isPortListening(PgPort)
+	// 使用与 toolkit.ps1 一致的检测逻辑
+	pgOK := isPostgreSQLServiceRunning()
 	msOK := isPortListening(MeiliPort)
 	appOK := isPortListening(AppPort)
 
