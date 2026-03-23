@@ -13,20 +13,16 @@ export async function GET() {
     const dbStatus = await checkDatabase();
     console.log('[Health] DB status:', dbStatus);
 
-    // 检查 Redis 连接
-    const redisStatus = await checkRedis();
-
     // 检查 Meilisearch 连接
     const meilisearchStatus = await checkMeilisearch();
 
-    const isHealthy = dbStatus.healthy && redisStatus.healthy && meilisearchStatus.healthy;
+    const isHealthy = dbStatus.healthy && meilisearchStatus.healthy;
 
     return NextResponse.json({
       status: isHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       services: {
         database: dbStatus,
-        redis: redisStatus,
         meilisearch: meilisearchStatus,
       },
     }, {
@@ -55,18 +51,6 @@ async function checkDatabase() {
   } catch (error) {
     console.error('[Health] Database connection failed:', error);
     return { healthy: false, message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` };
-  }
-}
-
-async function checkRedis() {
-  try {
-    if (!process.env.REDIS_URL) {
-      return { healthy: true, message: 'Not configured' };
-    }
-    // 简单的 Redis 连接检查（将在后续任务中实现）
-    return { healthy: true, message: 'Connected (check pending)' };
-  } catch {
-    return { healthy: false, message: 'Disconnected' };
   }
 }
 

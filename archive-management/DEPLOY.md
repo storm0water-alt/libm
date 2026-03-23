@@ -204,14 +204,12 @@ vim .env
 ```bash
 # 数据存储路径（根据服务器磁盘情况调整）
 POSTGRES_DATA_PATH=/data/archive/postgres
-REDIS_DATA_PATH=/data/archive/redis
 MEILISEARCH_DATA_PATH=/data/archive/meilisearch
 PDF_STORAGE_PATH=/data/archive/pdfs
 
 # 数据库密码（生产环境务必修改！）
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=<strong-password>
-REDIS_PASSWORD=<strong-password>
 MEILI_MASTER_KEY=<minimum-32-characters-key>
 
 # NextAuth 配置（生产环境务必修改！）
@@ -226,7 +224,7 @@ NEXTAUTH_URL=https://your-domain.com
 make init
 
 # 或手动创建
-mkdir -p /data/archive/{postgres,redis,meilisearch,pdfs,pgadmin,redis-insight}
+mkdir -p /data/archive/{postgres,meilisearch,pdfs,pgadmin}
 ```
 
 ### 4. 验证配置
@@ -243,13 +241,11 @@ make show-paths
 
 数据存储路径：
   PostgreSQL 数据: /data/archive/postgres/
-  Redis 数据:     /data/archive/redis/
   Meilisearch:     /data/archive/meilisearch/
   PDF 文件:       /data/archive/pdfs/
 
 目录状态：
   ✓ /data/archive/postgres
-  ✓ /data/archive/redis
   ✓ /data/archive/meilisearch
   ✓ /data/archive/pdfs
 ```
@@ -314,7 +310,6 @@ curl http://localhost:3000/api/health
 | 应用 | http://localhost:3000 | 主应用 |
 | Meilisearch | http://localhost:7700 | 搜索引擎管理界面 |
 | pgAdmin | http://localhost:5050 | 数据库管理（需 `make admin` 启动） |
-| Redis Insight | http://localhost:8001 | Redis 管理（需 `make admin` 启动） |
 
 ---
 
@@ -334,11 +329,9 @@ curl http://localhost:3000/api/health
 
 ```bash
 POSTGRES_PORT=5432    # PostgreSQL
-REDIS_PORT=6379       # Redis
 MEILISEARCH_PORT=7700 # Meilisearch
 APP_PORT=3000         # 应用
 PGADMIN_PORT=5050     # pgAdmin
-REDIS_INSIGHT_PORT=8001 # Redis Insight
 ```
 
 ### Q3: 权限问题
@@ -445,24 +438,20 @@ make health        # 检查健康状态
 |------|------|------|
 | 3000 | App | Next.js 应用 |
 | 5432 | PostgreSQL | 数据库 |
-| 6379 | Redis | 缓存 |
 | 7700 | Meilisearch | 搜索引擎 |
 | 5050 | pgAdmin | 数据库管理工具 |
-| 8001 | Redis Insight | Redis 管理工具 |
 
 ### 数据目录结构
 
 ```
 /data/archive/
 ├── postgres/          # PostgreSQL 数据
-├── redis/             # Redis 数据
 ├── meilisearch/       # Meilisearch 索引
 ├── pdfs/              # PDF 文件存储
-├── pgadmin/           # pgAdmin 配置
-└── redis-insight/     # Redis Insight 配置
+└── pgadmin/           # pgAdmin 配置
 ```
 
 ---
 
-**文档版本**: 1.0
-**最后更新**: 2026-01-26
+**文档版本**: 1.1
+**最后更新**: 2026-03-23

@@ -11,17 +11,9 @@
 │  │     App      │◄─┤              │  │              │      │
 │  │   (Port 3000)│  │  (Port 5432) │  │  (Port 7700) │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
-│         │                  │                  │              │
-│         └──────────────────┼──────────────────┘              │
-│                            ▼                                 │
-│                   ┌──────────────┐                           │
-│                   │    Redis     │                           │
-│                   │  (Port 6379) │                           │
-│                   └──────────────┘                           │
 │                                                              │
 │  存储卷:                                                     │
 │  ├── postgres_data      (数据库持久化)                       │
-│  ├── redis_data         (缓存持久化)                         │
 │  ├── meilisearch_data   (搜索索引持久化)                     │
 │  └── pdf_storage        (PDF 文件存储)                       │
 │                                                              │
@@ -48,7 +40,6 @@ vim .env
 
 **重要**：生产环境必须修改以下密码：
 - `POSTGRES_PASSWORD`
-- `REDIS_PASSWORD`
 - `MEILI_MASTER_KEY`（最少 32 字符）
 - `NEXTAUTH_SECRET`（最少 32 字符）
 
@@ -90,16 +81,13 @@ docker-compose exec app npx prisma migrate deploy
 ### 7. 管理工具（可选）
 
 ```bash
-# 启动管理工具（pgAdmin + Redis Insight）
+# 启动管理工具（pgAdmin）
 docker-compose --profile admin up -d
 
 # 访问 pgAdmin
 # 地址: http://localhost:5050
 # 用户名: 见 .env PGADMIN_EMAIL
 # 密码: 见 .env PGADMIN_PASSWORD
-
-# 访问 Redis Insight
-# 地址: http://localhost:8001
 ```
 
 ## 服务说明
@@ -109,7 +97,7 @@ docker-compose --profile admin up -d
 - **容器名**: `archive-app`
 - **端口**: 3000
 - **健康检查**: `GET /api/health`
-- **依赖**: postgres, redis, meilisearch
+- **依赖**: postgres, meilisearch
 
 ### PostgreSQL 数据库
 
@@ -119,14 +107,6 @@ docker-compose --profile admin up -d
 - **默认用户**: `postgres`
 - **默认数据库**: `archive_management`
 - **性能优化**: 已配置适合中小型应用的参数
-
-### Redis 缓存
-
-- **容器名**: `archive-redis`
-- **版本**: Redis 7 Alpine
-- **端口**: 6379
-- **最大内存**: 256MB
-- **淘汰策略**: allkeys-lru
 
 ### Meilisearch 搜索
 
@@ -139,12 +119,6 @@ docker-compose --profile admin up -d
 
 - **容器名**: `archive-pgadmin`
 - **端口**: 5050
-- **启动方式**: `--profile admin`
-
-### Redis Insight（可选）
-
-- **容器名**: `archive-redis-insight`
-- **端口**: 8001
 - **启动方式**: `--profile admin`
 
 ## 常用命令
@@ -354,5 +328,5 @@ cp .env.example .env.local
 npm run dev
 
 # 在另一个终端启动数据库（使用 docker-compose 仅启动中间件）
-docker-compose up -d postgres redis meilisearch
+docker-compose up -d postgres meilisearch
 ```

@@ -78,76 +78,145 @@ if (-not $nodePath) {
 
 Write-Info "Found Node.js at: $($nodePath.Source)"
 
-# Find bcryptjs module
+# Find bcryptjs module - search in multiple possible locations
+# Note: Next.js standalone build places node_modules in app/node_modules/
+$installPath = Split-Path $PSScriptRoot -Parent
+Write-Info "Installation path: $installPath"
+
 $bcryptPaths = @(
+    # Next.js standalone build location (primary)
+    "$installPath\app\node_modules\bcryptjs",
+    # Relative paths
     "$PSScriptRoot\..\app\node_modules\bcryptjs",
     "$PSScriptRoot\..\..\app\node_modules\bcryptjs",
-    "C:\ArchiveManagement\app\node_modules\bcryptjs"
+    # Common installation locations
+    "C:\ArchiveManagement\app\node_modules\bcryptjs",
+    "C:\archive-management\app\node_modules\bcryptjs"
 )
 
 $bcryptPath = $null
 foreach ($path in $bcryptPaths) {
-    if (Test-Path $path) {
-        $bcryptPath = $path
-        break
+    try {
+        $normalizedPath = [System.IO.Path]::GetFullPath($path)
+        Write-Host "  Checking: $normalizedPath" -ForegroundColor Gray
+        if (Test-Path $normalizedPath) {
+            $bcryptPath = $normalizedPath
+            Write-Host "  Found!" -ForegroundColor Green
+            break
+        }
+    } catch {}
+}
+
+# If not found, try to search recursively
+if (-not $bcryptPath) {
+    Write-Host ""
+    Write-Warn "bcryptjs not found in standard locations, searching recursively..."
+    $appPath = "$installPath\app"
+    if (Test-Path $appPath) {
+        Write-Info "Searching in: $appPath"
+        $found = Get-ChildItem -Path $appPath -Recurse -Filter "bcrypt.js" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($found) {
+            # bcryptjs package directory is two levels up from bcrypt.js
+            $bcryptPath = Split-Path (Split-Path $found.FullName -Parent) -Parent
+            Write-Info "Found bcryptjs at: $bcryptPath"
+        } else {
+            # Try alternative: look for index.js in bcryptjs folder
+            $found = Get-ChildItem -Path $appPath -Recurse -Directory -Filter "bcryptjs" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+                $bcryptPath = $found.FullName
+                Write-Info "Found bcryptjs directory at: $bcryptPath"
+            }
+        }
     }
 }
 
 if (-not $bcryptPath) {
-    Write-Warn "bcryptjs module not found"
-    Write-Info "Please run the following command manually in the app directory:"
     Write-Host ""
-    Write-Host "  cd C:\ArchiveManagement\app" -ForegroundColor Yellow
-    Write-Host "  node -e \"const bcrypt = require('bcryptjs'); console.log(bcrypt.hashSync('$Password', 10));\"" -ForegroundColor Yellow
+    Write-Err "bcryptjs module not found!"
     Write-Host ""
-    Write-Host "Then update the database with the generated hash."
+    Write-Host "Possible causes:" -ForegroundColor Yellow
+    Write-Host "  1. The app was not properly installed"
+    Write-Host "  2. node_modules was not included in the deployment"
+    Write-Host ""
+    Write-Info "Solutions:"
+    Write-Host ""
+    Write-Host "  Option 1: Run npm install in the app directory" -ForegroundColor Yellow
+    Write-Host "            cd $installPath\app" -ForegroundColor Gray
+    Write-Host "            npm install bcryptjs" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Option 2: Rebuild the deployment package" -ForegroundColor Yellow
+    Write-Host ""
     exit 1
 }
 
-Write-Info "Found bcryptjs at: $bcryptPath"
+Write-Info "Using bcryptjs from: $bcryptPath"
 
-# Generate bcrypt hash using Node.js (single line to avoid encoding issues)
+# Generate bcrypt hash using Node.js via temp file (more reliable than -e)
 Write-Info "Generating password hash..."
 
-$nodeCmd = "const bcrypt = require('$bcryptPath'); console.log(bcrypt.hashSync('$Password', 10));"
-$hash = & "$($nodePath.Source)" -e $nodeCmd 2>&1
+$tempJsFile = Join-Path $env:TEMP "genhash-$([Guid]::NewGuid().ToString()).js"
+try {
+    # Escape backslashes for JavaScript string
+    $bcryptPathJs = $bcryptPath.Replace('\', '\\')
+    $jsCode = "const bcrypt = require('$bcryptPathJs'); console.log(bcrypt.hashSync('$Password', 10));"
+    Set-Content -Path $tempJsFile -Value $jsCode -Encoding UTF8 -NoNewline
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Err "Failed to generate hash: $hash"
-    exit 1
+    $hash = & "$($nodePath.Source)" $tempJsFile 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Failed to generate hash: $hash"
+        exit 1
+    }
+
+    $hash = $hash.Trim()
+    Write-Info "Generated hash: $($hash.Substring(0, [Math]::Min(20, $hash.Length)))..."
+} finally {
+    # Clean up temp file
+    if (Test-Path $tempJsFile) {
+        Remove-Item $tempJsFile -Force -ErrorAction SilentlyContinue
+    }
 }
-
-$hash = $hash.Trim()
-Write-Info "Generated hash: $($hash.Substring(0, [Math]::Min(20, $hash.Length)))..."
 
 # Update password in database
 Write-Info "Updating admin password in database..."
 
-# Use double quotes for SQL to handle the hash properly
-$updateSql = "UPDATE \""User\"" SET password = '$hash' WHERE username = 'admin';"
-$updateResult = & "$psqlPath\psql.exe" -c $updateSql 2>&1
+# Use temp SQL file to avoid PowerShell quoting issues with psql
+$tempSqlFile = Join-Path $env:TEMP "updatepwd-$([Guid]::NewGuid().ToString()).sql"
+try {
+    # Write SQL to temp file (avoids all quoting issues)
+    $updateSql = "UPDATE `"User`" SET password = '$hash' WHERE username = 'admin';"
+    Set-Content -Path $tempSqlFile -Value $updateSql -Encoding UTF8 -NoNewline
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Err "Failed to update password: $updateResult"
-    Write-Info "Trying alternative method..."
+    # Set PostgreSQL connection environment variables
+    $env:PGHOST = $dbConfig.host
+    $env:PGPORT = $dbConfig.port
+    $env:PGDATABASE = $dbConfig.database
+    $env:PGUSER = $dbConfig.user
 
-    # Try with explicit connection string
-    $connStr = "postgresql://$($dbConfig.user)@$($dbConfig.host):$($dbConfig.port)/$($dbConfig.database)"
-    $updateResult = & "$psqlPath\psql.exe" "$connStr" -c $updateSql 2>&1
+    $updateResult = & "$psqlPath\psql.exe" -f $tempSqlFile 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Err "Alternative method also failed: $updateResult"
-        Write-Host ""
-        Write-Info "Please check PostgreSQL authentication settings."
-        Write-Info "Run: .\fix-postgres-auth.ps1"
+        Write-Err "Failed to update password: $updateResult"
         exit 1
+    }
+} finally {
+    if (Test-Path $tempSqlFile) {
+        Remove-Item $tempSqlFile -Force -ErrorAction SilentlyContinue
     }
 }
 
 # Verify update
 Write-Info "Verifying password update..."
-$verifySql = "SELECT username, role, status FROM \""User\"" WHERE username='admin';"
-$verifyResult = & "$psqlPath\psql.exe" -c $verifySql 2>&1
+$tempVerifyFile = Join-Path $env:TEMP "verify-$([Guid]::NewGuid().ToString()).sql"
+try {
+    $verifySql = "SELECT username, role, status FROM `"User`" WHERE username='admin';"
+    Set-Content -Path $tempVerifyFile -Value $verifySql -Encoding UTF8 -NoNewline
+    $verifyResult = & "$psqlPath\psql.exe" -f $tempVerifyFile 2>&1
+} finally {
+    if (Test-Path $tempVerifyFile) {
+        Remove-Item $tempVerifyFile -Force -ErrorAction SilentlyContinue
+    }
+}
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

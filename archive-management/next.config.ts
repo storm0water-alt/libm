@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // 外部服务端依赖（Next.js 15+ 使用顶层配置）
+  // 这些模块在运行时被动态引用，需要保持外部引用
+  serverExternalPackages: ['bcryptjs'],
 };
 
 export default nextConfig;

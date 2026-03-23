@@ -42,17 +42,14 @@ init: ## 初始化环境（首次使用）
 	@# 导出 .env 中的变量并使用默认值
 	@. .env 2>/dev/null || true; \
 	mkdir -p "$${POSTGRES_DATA_PATH:-./data/postgres}" \
-	         "$${REDIS_DATA_PATH:-./data/redis}" \
 	         "$${MEILISEARCH_DATA_PATH:-./data/meilisearch}" \
 	         "$${PDF_STORAGE_PATH:-./data/pdfs}" \
-	         "$${PGADMIN_DATA_PATH:-./data/pgadmin}" \
-	         "$${REDIS_INSIGHT_DATA_PATH:-./data/redis-insight}"
+	         "$${PGADMIN_DATA_PATH:-./data/pgadmin}"
 	@echo "$(GREEN)✓ 数据目录创建完成$(NC)"
 	@echo ""
 	@echo "$(BLUE)数据存储路径：$(NC)"
 	@. .env 2>/dev/null || true; \
 	echo "  PostgreSQL 数据: $${POSTGRES_DATA_PATH:-./data/postgres}/"; \
-	echo "  Redis 数据:     $${REDIS_DATA_PATH:-./data/redis}/"; \
 	echo "  Meilisearch:     $${MEILISEARCH_DATA_PATH:-./data/meilisearch}/"; \
 	echo "  PDF 文件:       $${PDF_STORAGE_PATH:-./data/pdfs}/"
 	@echo ""
@@ -71,15 +68,13 @@ show-paths: ## 显示当前配置的存储路径
 	@echo "$(GREEN)数据存储路径：$(NC)"
 	@. .env 2>/dev/null || true; \
 	echo "  PostgreSQL 数据: $${POSTGRES_DATA_PATH:-./data/postgres}/"; \
-	echo "  Redis 数据:     $${REDIS_DATA_PATH:-./data/redis}/"; \
 	echo "  Meilisearch:     $${MEILISEARCH_DATA_PATH:-./data/meilisearch}/"; \
 	echo "  PDF 文件:       $${PDF_STORAGE_PATH:-./data/pdfs}/"; \
-	echo "  pgAdmin 数据:    $${PGADMIN_DATA_PATH:-./data/pgadmin}/"; \
-	echo "  Redis Insight:   $${REDIS_INSIGHT_DATA_PATH:-./data/redis-insight}/"
+	echo "  pgAdmin 数据:    $${PGADMIN_DATA_PATH:-./data/pgadmin}/"
 	@echo ""
 	@echo "$(BLUE)目录状态：$(NC)"
 	@. .env 2>/dev/null || true; \
-	for dir in "$${POSTGRES_DATA_PATH:-./data/postgres}" "$${REDIS_DATA_PATH:-./data/redis}" "$${MEILISEARCH_DATA_PATH:-./data/meilisearch}" "$${PDF_STORAGE_PATH:-./data/pdfs}" "$${PGADMIN_DATA_PATH:-./data/pgadmin}" "$${REDIS_INSIGHT_DATA_PATH:-./data/redis-insight}"; do \
+	for dir in "$${POSTGRES_DATA_PATH:-./data/postgres}" "$${MEILISEARCH_DATA_PATH:-./data/meilisearch}" "$${PDF_STORAGE_PATH:-./data/pdfs}" "$${PGADMIN_DATA_PATH:-./data/pgadmin}"; do \
 		if [ -d "$$dir" ]; then \
 			echo "  ✓ $$dir"; \
 		else \
@@ -105,17 +100,16 @@ up: ## 启动所有服务
 	@echo "$(BLUE)查看状态: make ps$(NC)"
 
 dev: ## 启动开发环境（仅中间件）
-	@echo "$(CYAN)启动开发环境（PostgreSQL, Redis, Meilisearch）...$(NC)"
-	docker-compose up -d postgres redis meilisearch
+	@echo "$(CYAN)启动开发环境（PostgreSQL, Meilisearch）...$(NC)"
+	docker-compose up -d postgres meilisearch
 	@echo "$(GREEN)✓ 中间件启动完成$(NC)"
 	@echo "$(YELLOW)本地开发请运行: npm run dev$(NC)"
 
-admin: ## 启动服务（包含管理工具 pgAdmin, Redis Insight）
+admin: ## 启动服务（包含管理工具 pgAdmin）
 	@echo "$(CYAN)启动服务（含管理工具）...$(NC)"
 	docker-compose --profile admin up -d
 	@echo "$(GREEN)✓ 服务启动完成$(NC)"
 	@echo "$(YELLOW)pgAdmin: http://localhost:5050$(NC)"
-	@echo "$(YELLOW)Redis Insight: http://localhost:8001$(NC)"
 
 down: ## 停止所有服务
 	@echo "$(CYAN)停止所有服务...$(NC)"

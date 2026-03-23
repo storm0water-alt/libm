@@ -24,9 +24,6 @@ make init
 # 数据库数据存储
 POSTGRES_DATA_PATH=/path/to/postgres/data
 
-# Redis 数据存储
-REDIS_DATA_PATH=/path/to/redis/data
-
 # Meilisearch 索引存储
 MEILISEARCH_DATA_PATH=/path/to/meilisearch/data
 
@@ -35,9 +32,6 @@ PDF_STORAGE_PATH=/path/to/pdfs
 
 # pgAdmin 数据存储
 PGADMIN_DATA_PATH=/path/to/pgadmin
-
-# Redis Insight 数据存储
-REDIS_INSIGHT_DATA_PATH=/path/to/redis-insight
 ```
 
 ### 3. 路径格式说明
@@ -72,11 +66,9 @@ archive-management/                     # 项目根目录
 ├── Makefile                             # 快捷命令
 └── data/                               # 数据目录
     ├── postgres/                        # PostgreSQL 数据文件
-    ├── redis/                           # Redis 数据文件
     ├── meilisearch/                     # Meilisearch 索引数据
     ├── pdfs/                            # PDF 文件
-    ├── pgadmin/                          # pgAdmin 数据
-    └── redis-insight/                    # Redis Insight 数据
+    └── pgadmin/                          # pgAdmin 数据
 ```
 
 ### 自定义路径时
@@ -85,7 +77,6 @@ archive-management/                     # 项目根目录
 /mnt/storage/
 └── archive-data/
     ├── postgres-data/
-    ├── redis-data/
     ├── meilisearch-data/
     ├── pdf-files/
     └── admin-data/
@@ -94,11 +85,9 @@ archive-management/                     # 项目根目录
 ```bash
 # .env 文件配置
 POSTGRES_DATA_PATH=/mnt/storage/archive-data/postgres-data
-REDIS_DATA_PATH=/mnt/storage/archive-data/redis-data
 MEILISEARCH_DATA_PATH=/mnt/storage/archive-data/meilisearch-data
 PDF_STORAGE_PATH=/mnt/storage/archive-data/pdf-files
 PGADMIN_DATA_PATH=/mnt/storage/archive-data/admin-data
-REDIS_INSIGHT_DATA_PATH=/mnt/storage/archive-data/redis-insight
 ```
 
 ## docker-compose.yml 中的使用方式
@@ -110,15 +99,6 @@ postgres:
   volumes:
     # 直接使用环境变量作为宿主机路径
     - ${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data
-```
-
-### Redis 数据卷
-
-```yaml
-redis:
-  volumes:
-    # 直接使用环境变量作为宿主机路径
-    - ${REDIS_DATA_PATH:-./data/redis}:/data
 ```
 
 ### Meilisearch 数据卷
@@ -146,7 +126,6 @@ app:
 ```bash
 # .env 文件（使用默认路径）
 POSTGRES_DATA_PATH=./data/postgres
-REDIS_DATA_PATH=./data/redis
 MEILISEARCH_DATA_PATH=./data/meilisearch
 PDF_STORAGE_PATH=./data/pdfs
 ```
@@ -156,11 +135,9 @@ PDF_STORAGE_PATH=./data/pdfs
 ```bash
 # .env 文件（所有数据存放在 /mnt/data）
 POSTGRES_DATA_PATH=/mnt/data/archive/postgres
-REDIS_DATA_PATH=/mnt/data/archive/redis
 MEILISEARCH_DATA_PATH=/mnt/data/archive/meilisearch
 PDF_STORAGE_PATH=/mnt/data/archive/pdfs
 PGADMIN_DATA_PATH=/mnt/data/archive/pgadmin
-REDIS_INSIGHT_DATA_PATH=/mnt/data/archive/redis-insight
 ```
 
 ### 场景 3：Windows 系统
@@ -168,11 +145,9 @@ REDIS_INSIGHT_DATA_PATH=/mnt/data/archive/redis-insight
 ```bash
 # .env 文件（Windows 路径）
 POSTGRES_DATA_PATH=C:/docker-data/archive/postgres
-REDIS_DATA_PATH=C:/docker-data/archive/redis
 MEILISEARCH_DATA_PATH=C:/docker-data/archive/meilisearch
 PDF_STORAGE_PATH=D:/documents/archive/pdfs
 PGADMIN_DATA_PATH=C:/docker-data/archive/pgadmin
-REDIS_INSIGHT_DATA_PATH=C:/docker-data/archive/redis-insight
 ```
 
 ## 使用方式
@@ -209,15 +184,12 @@ make show-paths
 
 数据存储路径：
   PostgreSQL 数据: ./data/postgres/
-  Redis 数据:     ./data/redis/
   Meilisearch:     ./data/meilisearch/
   PDF 文件:       ./data/pdfs/
   pgAdmin 数据:    ./data/pgadmin/
-  Redis Insight:   ./data/redis-insight/
 
 目录状态：
   ✓ ./data/postgres (不存在)
-  ✓ ./data/redis (不存在)
   ✓ ./data/meilisearch (不存在)
   ✓ ./data/pdfs (不存在)
 ```

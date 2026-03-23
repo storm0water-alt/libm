@@ -85,6 +85,15 @@ if [ -d "${PROJECT_DIR}/public" ]; then
 fi
 
 # 注意：standalone 构建已包含 node_modules，无需单独复制
+# 但是，某些外部依赖（如 bcryptjs）可能需要手动复制
+echo "  - 复制外部依赖 (bcryptjs)..."
+mkdir -p "${STAGING_DIR}/app/node_modules/bcryptjs"
+if [ -d "${PROJECT_DIR}/node_modules/bcryptjs" ]; then
+    cp -r "${PROJECT_DIR}/node_modules/bcryptjs/"* "${STAGING_DIR}/app/node_modules/bcryptjs/"
+    echo "    - 已复制 bcryptjs"
+else
+    echo "    - 警告: bcryptjs 模块未找到"
+fi
 
 # 9. 复制 PM2 配置文件
 echo "  - 复制 ecosystem.config.js ..."

@@ -1,5 +1,5 @@
 # 档案管理系统 Docker Compose 配置
-# 技术栈: Next.js 15 + PostgreSQL + Meilisearch + Redis
+# 技术栈: Next.js 15 + PostgreSQL + Meilisearch
 #
 # 所有数据卷路径通过 .env 文件配置，实现统一管理
 
@@ -57,37 +57,6 @@ services:
       - "max_wal_size=4GB"
 
   # ============================
-  # Redis 缓存
-  # ============================
-  redis:
-    image: redis:7-alpine
-    container_name: archive-redis
-    restart: unless-stopped
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
-    command: >
-      sh -c '
-        redis-server
-        --requirepass ${REDIS_PASSWORD:-redis_password}
-        --maxmemory 256mb
-        --maxmemory-policy allkeys-lru
-        --appendonly yes
-        --appendfsync everysec
-      '
-    volumes:
-      # 使用环境变量配置数据卷路径
-      - ${REDIS_DATA_PATH:-./data/redis}:/data
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - archive-network
-
-  # ============================
   # Meilisearch 搜索引擎
   # ============================
   meilisearch:
@@ -126,9 +95,6 @@ services:
       # 数据库连接
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-archive_management}?pgbouncer=true&connect_timeout=15
 
-      # Redis 连接
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
-
       # Meilisearch 连接
       MEILISEARCH_URL: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:-your_master_key_here_change_in_production}
@@ -166,8 +132,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       meilisearch:
         condition: service_healthy
     healthcheck:
@@ -197,26 +161,6 @@ services:
       - "${PGADMIN_PORT:-5050}:80"
     depends_on:
       postgres:
-        condition: service_healthy
-    networks:
-      - archive-network
-    profiles:
-      - admin  # 使用 --profile admin 启动此服务
-
-  # ============================
-  # Redis Insight (可选 - Redis 管理工具)
-  # ============================
-  redis-insight:
-    image: redis/redisinsight:latest
-    container_name: archive-redis-insight
-    restart: unless-stopped
-    volumes:
-      # 使用环境变量配置数据卷路径
-      - ${REDIS_INSIGHT_DATA_PATH:-./data/redis-insight}:/db
-    ports:
-      - "${REDIS_INSIGHT_PORT:-8001}:8001"
-    depends_on:
-      redis:
         condition: service_healthy
     networks:
       - archive-network

@@ -736,6 +736,13 @@ $ScriptsDir = Join-Path $InstallPath "scripts"
 if (Test-Path $ScriptsDir) {
     Copy-Item -Path "$ScriptsDir\*.bat" -Destination "$ArchiveHome\scripts" -Force
     Copy-Item -Path "$ScriptsDir\*.ps1" -Destination "$ArchiveHome\scripts" -Force
+    Copy-Item -Path "$ScriptsDir\*.exe" -Destination "$ArchiveHome\scripts" -Force
+    Copy-Item -Path "$ScriptsDir\*.ico" -Destination "$ArchiveHome\scripts" -Force
+    # Copy tools directory (ResourceHacker.exe, etc.)
+    $ToolsDir = Join-Path $ScriptsDir "tools"
+    if (Test-Path $ToolsDir) {
+        Copy-Item -Path $ToolsDir -Destination "$ArchiveHome\scripts\tools" -Recurse -Force
+    }
 }
 
 # Copy services
