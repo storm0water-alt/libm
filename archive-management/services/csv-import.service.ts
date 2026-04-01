@@ -157,6 +157,12 @@ function normalizeRetentionPeriod(
     '永久': { retentionPeriod: '永久', retentionCode: 'Y' },
     'y': { retentionPeriod: '永久', retentionCode: 'Y' },
     'Y': { retentionPeriod: '永久', retentionCode: 'Y' },
+    '长期': { retentionPeriod: '长期', retentionCode: 'C' },
+    'c': { retentionPeriod: '长期', retentionCode: 'C' },
+    'C': { retentionPeriod: '长期', retentionCode: 'C' },
+    '短期': { retentionPeriod: '短期', retentionCode: 'D' },
+    'd': { retentionPeriod: '短期', retentionCode: 'D' },
+    'D': { retentionPeriod: '短期', retentionCode: 'D' },
   };
 
   // Try to match by period first

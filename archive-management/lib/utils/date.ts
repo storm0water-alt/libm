@@ -171,6 +171,10 @@ function getRetentionPeriod(code: string): string {
   const mapping: Record<string, string> = {
     'Y': '永久',
     'y': '永久',
+    'C': '长期',
+    'c': '长期',
+    'D': '短期',
+    'd': '短期',
     '1': '10年',
     '3': '30年',
   };

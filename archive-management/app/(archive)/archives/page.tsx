@@ -31,8 +31,8 @@ import {
 import type { ArchiveItem } from "@/services/archive.service";
 import { useLoading } from "@/lib/loading-context";
 
-// Retention period options (enum)
-const RETENTION_PERIODS = ["10年", "30年", "永久"];
+const RETENTION_PERIOD_OPTIONS = ["永久", "长期", "短期", "10年", "30年"] as const;
+const RETENTION_CUSTOM = "__custom__";
 
 export default function ArchivesPage() {
   const router = useRouter();
@@ -73,6 +73,7 @@ export default function ArchivesPage() {
   // Filter state - dropdowns
   const [year, setYear] = useState<string>("all");
   const [retentionPeriod, setRetentionPeriod] = useState<string>("all");
+  const [retentionCustom, setRetentionCustom] = useState<string>("");
   const [responsible, setResponsible] = useState<string>("");
 
   // Filter state - date range
@@ -225,7 +226,11 @@ export default function ArchivesPage() {
           boxNo: boxNo || undefined,
           pieceNo: pieceNo || undefined,
           year: year !== "all" ? year : undefined,
-          retentionPeriod: retentionPeriod !== "all" ? retentionPeriod : undefined,
+          retentionPeriod: retentionPeriod !== "all" && retentionPeriod !== RETENTION_CUSTOM
+            ? retentionPeriod
+            : retentionPeriod === RETENTION_CUSTOM && retentionCustom
+              ? retentionCustom
+              : undefined,
           responsible: responsible || undefined,
           classificationLevel: classificationLevel || undefined,
           dateStart: dateRange.from,
@@ -272,6 +277,7 @@ export default function ArchivesPage() {
     setPieceNo("");
     setYear("all");
     setRetentionPeriod("all");
+    setRetentionCustom("");
     setResponsible("");
     setClassificationLevel("");
     setDateRange({});
@@ -358,7 +364,8 @@ export default function ArchivesPage() {
     boxNo ||
     pieceNo ||
     year !== "all" ||
-    retentionPeriod !== "all" ||
+    retentionPeriod !== "all" && retentionPeriod !== RETENTION_CUSTOM ||
+    retentionPeriod === RETENTION_CUSTOM && retentionCustom ||
     responsible ||
     classificationLevel ||
     dateRange.from ||
@@ -498,19 +505,28 @@ export default function ArchivesPage() {
               {/* Retention Period - enum dropdown */}
               <div className="space-y-2">
                 <Label htmlFor="retentionPeriod">保管期限</Label>
-                <Select value={retentionPeriod} onValueChange={setRetentionPeriod}>
+                <Select value={retentionPeriod} onValueChange={(v) => { setRetentionPeriod(v); if (v !== RETENTION_CUSTOM) setRetentionCustom(""); }}>
                   <SelectTrigger id="retentionPeriod">
                     <SelectValue placeholder="全部期限" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部期限</SelectItem>
-                    {RETENTION_PERIODS.map((period) => (
+                    {RETENTION_PERIOD_OPTIONS.map((period) => (
                       <SelectItem key={period} value={period}>
                         {period}
                       </SelectItem>
                     ))}
+                    <SelectItem value={RETENTION_CUSTOM}>其他...</SelectItem>
                   </SelectContent>
                 </Select>
+                {retentionPeriod === RETENTION_CUSTOM && (
+                  <Input
+                    placeholder="输入自定义保管期限"
+                    value={retentionCustom}
+                    onChange={(e) => setRetentionCustom(e.target.value)}
+                    className="mt-1"
+                  />
+                )}
               </div>
 
               {/* Responsible - keyword search dropdown */}

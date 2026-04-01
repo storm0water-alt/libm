@@ -142,6 +142,12 @@ echo "    - tools/ResourceHacker.exe (图标工具)"
 # 13. 复制服务配置和数据库脚本
 cp "${SCRIPT_DIR}/services/"*.json "${STAGING_DIR}/services/"
 cp "${SCRIPT_DIR}/init-data/"*.sql "${STAGING_DIR}/init-data/"
+# 复制数据库增量更新脚本
+if [ -d "${SCRIPT_DIR}/init-data/updates" ] && [ "$(ls -A "${SCRIPT_DIR}/init-data/updates/" 2>/dev/null)" ]; then
+    mkdir -p "${STAGING_DIR}/init-data/updates"
+    cp "${SCRIPT_DIR}/init-data/updates/"*.sql "${STAGING_DIR}/init-data/updates/"
+    echo "  - 已复制 init-data/updates/"
+fi
 
 # 12. 生成离线安装包
 echo ""
