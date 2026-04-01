@@ -78,6 +78,7 @@ export async function queryArchivesAction(params: ArchiveQueryParams): Promise<A
       dateStart: params.dateStart,
       dateEnd: params.dateEnd,
       deptIssue: params.deptIssue,
+      classificationLevel: params.classificationLevel,
     });
 
     return {

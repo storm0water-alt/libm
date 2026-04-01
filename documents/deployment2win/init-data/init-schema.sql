@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS "Archive" (
     "date" TEXT NOT NULL,
     "pageNo" TEXT NOT NULL,
     "remark" TEXT,
+    "classificationLevel" TEXT NOT NULL DEFAULT '',
     "fileUrl" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

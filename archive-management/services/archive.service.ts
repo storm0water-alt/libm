@@ -38,6 +38,8 @@ export interface ArchiveQueryParams {
   retentionPeriod?: string;
   /** Optional responsible person filter (keyword search) */
   responsible?: string;
+  /** Optional classification level filter (keyword search) */
+  classificationLevel?: string;
   /** Date range filter */
   dateStart?: string;
   dateEnd?: string;
@@ -77,6 +79,7 @@ export interface ArchiveItem {
   date: string;
   pageNo: string;
   remark: string | null;
+  classificationLevel: string;
   fileUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -101,6 +104,7 @@ export interface CreateArchiveInput {
   date: string;
   pageNo: string;
   remark?: string;
+  classificationLevel?: string;
   fileUrl?: string;
 }
 
@@ -123,6 +127,7 @@ export interface UpdateArchiveInput {
   date?: string;
   pageNo?: string;
   remark?: string;
+  classificationLevel?: string;
   fileUrl?: string;
 }
 
@@ -197,6 +202,11 @@ export async function queryArchives(
   // Responsible person keyword search
   if (responsible) {
     where.responsible = { contains: responsible, mode: "insensitive" };
+  }
+
+  // Classification level exact match filter
+  if (params.classificationLevel) {
+    where.classificationLevel = params.classificationLevel;
   }
 
   // Date range filter

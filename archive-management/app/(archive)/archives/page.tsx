@@ -67,6 +67,9 @@ export default function ArchivesPage() {
   const initialSearchValue = (fromSearch && searchQuery) ? searchQuery : "";
   const [search, setSearch] = useState<string>(initialSearchValue);
 
+  // Filter state - classification level keyword search
+  const [classificationLevel, setClassificationLevel] = useState<string>("");
+
   // Filter state - dropdowns
   const [year, setYear] = useState<string>("all");
   const [retentionPeriod, setRetentionPeriod] = useState<string>("all");
@@ -224,6 +227,7 @@ export default function ArchivesPage() {
           year: year !== "all" ? year : undefined,
           retentionPeriod: retentionPeriod !== "all" ? retentionPeriod : undefined,
           responsible: responsible || undefined,
+          classificationLevel: classificationLevel || undefined,
           dateStart: dateRange.from,
           dateEnd: dateRange.to,
         });
@@ -269,6 +273,7 @@ export default function ArchivesPage() {
     setYear("all");
     setRetentionPeriod("all");
     setResponsible("");
+    setClassificationLevel("");
     setDateRange({});
     setPage(1);
     // Search mode is now computed based on URL params
@@ -355,6 +360,7 @@ export default function ArchivesPage() {
     year !== "all" ||
     retentionPeriod !== "all" ||
     responsible ||
+    classificationLevel ||
     dateRange.from ||
     dateRange.to;
 
@@ -515,6 +521,17 @@ export default function ArchivesPage() {
                   placeholder="责任者关键词"
                   value={responsible}
                   onChange={(e) => setResponsible(e.target.value)}
+                />
+              </div>
+
+              {/* Classification Level - keyword search */}
+              <div className="space-y-2">
+                <Label htmlFor="classificationLevel">密级</Label>
+                <Input
+                  id="classificationLevel"
+                  placeholder="密级关键词"
+                  value={classificationLevel}
+                  onChange={(e) => setClassificationLevel(e.target.value)}
                 />
               </div>
 

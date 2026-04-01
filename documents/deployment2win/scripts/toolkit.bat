@@ -13,6 +13,7 @@ REM   toolkit.bat logs         - View logs
 REM   toolkit.bat backup       - Database backup
 REM   toolkit.bat diagnose     - Run diagnostics
 REM   toolkit.bat init-db      - Initialize database (create DB, schema, seed)
+REM   toolkit.bat db-update <file> - Execute SQL update script
 REM   toolkit.bat reset        - Reset services (keep data)
 REM   toolkit.bat reset -clean - Reset services and clean data
 REM   toolkit.bat start pg     - Start PostgreSQL only

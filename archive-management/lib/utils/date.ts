@@ -174,7 +174,7 @@ function getRetentionPeriod(code: string): string {
     '1': '10年',
     '3': '30年',
   };
-  return mapping[code] || '永久';
+  return mapping[code] || '';
 }
 
 /**

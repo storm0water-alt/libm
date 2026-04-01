@@ -83,6 +83,7 @@ export function PdfPreviewDialog({
     { label: "全宗号", value: archive.fondsNo },
     { label: "年度", value: archive.year },
     { label: "保管期限", value: archive.retentionPeriod },
+    { label: "密级", value: archive.classificationLevel || "-" },
     { label: "保管期限代码", value: archive.retentionCode },
     { label: "责任者", value: archive.responsible, icon: User },
     { label: "文号", value: archive.docNo || "-" },

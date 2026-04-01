@@ -298,6 +298,11 @@ async function processCSVData(
         updateData.remark = dataMap.get('备注')?.trim();
       }
 
+      // Support 密级 (classification level)
+      if (isValidValue(dataMap.get('密级'))) {
+        updateData.classificationLevel = dataMap.get('密级')?.trim();
+      }
+
       // Update archive
       const updatedArchive = await prisma.archive.update({
         where: { archiveNo },

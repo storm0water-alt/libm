@@ -18,10 +18,10 @@ VALUES
 (gen_random_uuid(), 'system.admin.created', 'true', 'boolean', '管理员账户已创建', 'system', true, NOW(), NOW())
 ON CONFLICT ("configKey") DO NOTHING;
 
-INSERT INTO "Archive" ("archiveID", "archiveNo", "fondsNo", "retentionPeriod", "retentionCode", "year", "deptCode", "boxNo", "pieceNo", "title", "deptIssue", "responsible", "docNo", "date", "pageNo", "remark", "fileUrl", "createdAt", "updatedAt")
+INSERT INTO "Archive" ("archiveID", "archiveNo", "fondsNo", "retentionPeriod", "retentionCode", "year", "deptCode", "boxNo", "pieceNo", "title", "deptIssue", "responsible", "docNo", "date", "pageNo", "remark", "classificationLevel", "fileUrl", "createdAt", "updatedAt")
 VALUES
-('demo_001', 'DEMO-2024-001', '001', '永久', 'Y', '2024', '001', '001', '001', '演示档案 - 年度工作总结', '办公室', '系统管理员', '文号〔2024〕1号', '2024-12-31', '1-10', '重要演示档案', '/demo/archives/2024-summary.pdf', NOW(), NOW()),
-('demo_002', 'DEMO-2024-002', '001', '长期', 'C', '2024', '002', '002', '002', '演示档案 - 财务制度', '财务部', '财务主管', '文号〔2024〕15号', '2024-06-15', '11-25', '财务相关制度文件', '/demo/archives/finance-rules.pdf', NOW(), NOW())
+('demo_001', 'DEMO-2024-001', '001', '永久', 'Y', '2024', '001', '001', '001', '演示档案 - 年度工作总结', '办公室', '系统管理员', '文号〔2024〕1号', '2024-12-31', '1-10', '重要演示档案', '', '/demo/archives/2024-summary.pdf', NOW(), NOW()),
+('demo_002', 'DEMO-2024-002', '001', '长期', 'C', '2024', '002', '002', '002', '演示档案 - 财务制度', '财务部', '财务主管', '文号〔2024〕15号', '2024-06-15', '11-25', '财务相关制度文件', '', '/demo/archives/finance-rules.pdf', NOW(), NOW())
 ON CONFLICT ("archiveNo") DO NOTHING;
 
 INSERT INTO "OperationLog" ("id", "operator", "operation", "target", "ip", "time", "archiveId", "action", "entityType", "entityId", "description", "metadata", "createdAt", "userId")

@@ -37,8 +37,9 @@ model Archive {
   docNo           String
   date            String
   pageNo          String
-  remark          String?
-  fileUrl         String?
+  remark               String?
+  classificationLevel  String         @default("")  // 密级
+  fileUrl              String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   importRecordId  String?

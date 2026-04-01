@@ -22,8 +22,15 @@ function Get-ArchiveHome {
     } elseif ($MyInvocation.MyCommand.Path) {
         $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
     } else {
-        # Fallback to default
-        return "C:\ArchiveManagement"
+        # Fallback: search common drive locations
+        $drives = @("C:", "D:", "E:", "F:")
+        foreach ($drive in $drives) {
+            $candidate = Join-Path $drive "ArchiveManagement"
+            if (Test-Path (Join-Path $candidate "config\config.ini")) {
+                return $candidate
+            }
+        }
+        return $null
     }
 
     $archiveHome = Split-Path -Parent $scriptPath
@@ -36,8 +43,48 @@ function Get-ArchiveHome {
         }
     }
 
-    # Try to find from registry or default
-    return "C:\ArchiveManagement"
+    # Try config from known locations (C:, D:, E:)
+    $drives = @("C:", "D:", "E:", "F:")
+    foreach ($drive in $drives) {
+        $candidate = Join-Path $drive "ArchiveManagement"
+        if (Test-Path (Join-Path $candidate "config\config.ini")) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-PGPath {
+    # Resolve PostgreSQL installation directory dynamically
+    # Priority: 1) Search installed versions on disk  2) Fallback to PATH lookup
+    $versions = @("17", "16", "15", "14")
+    foreach ($v in $versions) {
+        $candidate = "C:\Program Files\PostgreSQL\$v"
+        if (Test-Path (Join-Path $candidate "bin\psql.exe")) {
+            return $candidate
+        }
+    }
+    # Try PATH
+    $psqlCmd = Get-Command psql -ErrorAction SilentlyContinue
+    if ($psqlCmd) {
+        return Split-Path (Split-Path $psqlCmd.Source)
+    }
+    # Last resort: default to PG 16
+    return "C:\Program Files\PostgreSQL\16"
+}
+
+function Get-MeilisearchPath {
+    # Resolve Meilisearch executable path dynamically
+    $candidate = "C:\Program Files\Meilisearch\meilisearch.exe"
+    if (Test-Path $candidate) {
+        return $candidate
+    }
+    $meiliCmd = Get-Command meilisearch -ErrorAction SilentlyContinue
+    if ($meiliCmd) {
+        return $meiliCmd.Source
+    }
+    return $candidate
 }
 
 function Get-PortStatus {
@@ -128,7 +175,7 @@ function Start-Meilisearch {
 
     # Start as process
     $ARCHIVE_HOME = Get-ArchiveHome
-    $meiliPath = "C:\Program Files\Meilisearch\meilisearch.exe"
+    $meiliPath = Get-MeilisearchPath
     $envPath = Join-Path $ARCHIVE_HOME "config\.env"
 
     if (Test-Path $envPath) {
@@ -345,7 +392,8 @@ function Invoke-Backup {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $backupFile = Join-Path $backupDir "backup-$timestamp.sql"
 
-    $pgPath = "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"
+    $pgDir = Get-PGPath
+    $pgPath = Join-Path $pgDir "bin\pg_dump.exe"
     $envPath = Join-Path $ARCHIVE_HOME "config\.env"
     $dbPass = (Select-String "POSTGRES_PASSWORD=" $envPath | Select-Object -First 1).Line.Split("=")[1].Trim()
 
@@ -377,19 +425,11 @@ function Reset-AdminPassword {
 
     $ARCHIVE_HOME = Get-ArchiveHome
 
-    # Find PostgreSQL
-    $pgPaths = @(
-        "C:\Program Files\PostgreSQL\16\bin",
-        "C:\Program Files\PostgreSQL\15\bin",
-        "C:\Program Files\PostgreSQL\14\bin"
-    )
-
-    $psqlPath = $null
-    foreach ($path in $pgPaths) {
-        if (Test-Path "$path\psql.exe") {
-            $psqlPath = $path
-            break
-        }
+    # Find PostgreSQL using Get-PGPath
+    $pgDir = Get-PGPath
+    $psqlPath = Join-Path $pgDir "bin"
+    if (-not (Test-Path "$psqlPath\psql.exe")) {
+        $psqlPath = $null
     }
 
     if (-not $psqlPath) {
@@ -417,8 +457,7 @@ function Reset-AdminPassword {
 
     # Find bcryptjs module
     $bcryptPaths = @(
-        "$ARCHIVE_HOME\app\node_modules\bcryptjs",
-        "C:\ArchiveManagement\app\node_modules\bcryptjs"
+        "$ARCHIVE_HOME\app\node_modules\bcryptjs"
     )
 
     $bcryptPath = $null
@@ -506,7 +545,7 @@ function Initialize-Database {
     Write-Host ""
 
     $ARCHIVE_HOME = Get-ArchiveHome
-    $PGPath = "C:\Program Files\PostgreSQL\16"
+    $PGPath = Get-PGPath
 
     # Step 1: Ensure PostgreSQL is running
     Write-Host "[Step 1/4] Checking PostgreSQL service..." -ForegroundColor $Yellow
@@ -699,11 +738,86 @@ function Initialize-Database {
     Write-Host ""
 }
 
+function Invoke-DbUpdate {
+    param([string]$SqlFile)
+
+    Write-Host ""
+    Write-Host ("=" * 60) -ForegroundColor $Cyan
+    Write-Host "Database Update" -ForegroundColor $Cyan
+    Write-Host ("=" * 60) -ForegroundColor $Cyan
+    Write-Host ""
+
+    $ARCHIVE_HOME = Get-ArchiveHome
+    $PGPath = Get-PGPath
+
+    # Resolve SQL file path
+    if ([System.IO.Path]::IsPathRooted($SqlFile)) {
+        $resolvedPath = $SqlFile
+    } else {
+        # Try relative to init-data\updates first
+        $resolvedPath = Join-Path $ARCHIVE_HOME (Join-Path "init-data\updates" $SqlFile)
+        if (-not (Test-Path $resolvedPath)) {
+            # Try relative to ARCHIVE_HOME
+            $resolvedPath = Join-Path $ARCHIVE_HOME $SqlFile
+        }
+    }
+
+    if (-not (Test-Path $resolvedPath)) {
+        Write-Host "  [ERROR] SQL file not found: $SqlFile" -ForegroundColor $Red
+        Write-Host "  Searched:" -ForegroundColor $Gray
+        Write-Host "    - $resolvedPath" -ForegroundColor $Gray
+        Write-Host ""
+        Write-Host "  Usage: toolkit.bat db-update <sql-file>" -ForegroundColor $Yellow
+        Write-Host "  Example:" -ForegroundColor $Yellow
+        Write-Host "    toolkit.bat db-update update-2026-04-01-add-classificationLevel.sql" -ForegroundColor $Gray
+        Write-Host ""
+        return
+    }
+
+    Write-Host "  SQL file: $resolvedPath" -ForegroundColor $Gray
+
+    # Ensure PostgreSQL is running
+    $pgService = Get-Service -Name PostgreSQL -ErrorAction SilentlyContinue
+    if (-not $pgService -or $pgService.Status -ne "Running") {
+        Write-Host "  Starting PostgreSQL..." -ForegroundColor $Yellow
+        Start-Service -Name PostgreSQL -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 5
+    }
+
+    # Execute SQL file
+    Write-Host "  Executing SQL update..." -ForegroundColor $Yellow
+
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & "$PGPath\bin\psql.exe" -U postgres -d archive_management -f $resolvedPath 2>&1
+        $exitCode = $LASTEXITCODE
+    } catch {
+        $exitCode = 1
+        $output = $_.Exception.Message
+    }
+    $ErrorActionPreference = "Continue"
+
+    Write-Host ""
+    if ($exitCode -eq 0) {
+        Write-Host "  [OK] Database update executed successfully" -ForegroundColor $Green
+        if ($output) {
+            Write-Host ""
+            Write-Host "  Output:" -ForegroundColor $Gray
+            Write-Host "  $output" -ForegroundColor $Gray
+        }
+    } else {
+        Write-Host "  [ERROR] Database update failed" -ForegroundColor $Red
+        Write-Host "  $output" -ForegroundColor $Gray
+    }
+
+    Write-Host ""
+}
+
 function Test-Database {
     param([string]$Target = "all")
 
     $ErrorActionPreference = "Continue"
-    $PGPath = "C:\Program Files\PostgreSQL\16"
+    $PGPath = Get-PGPath
 
     Write-Host ""
     Write-Host ("=" * 60) -ForegroundColor $Cyan
@@ -966,7 +1080,7 @@ function Invoke-Diagnose {
         Write-Host ""
 
         # Initialize paths
-        $pgPath = "C:\Program Files\PostgreSQL\16"
+        $pgPath = Get-PGPath
         $configDataPath = $null
 
         # Check service
@@ -1083,7 +1197,7 @@ function Invoke-Diagnose {
 
         # Check installation
         Write-Host "[3] Installation:" -ForegroundColor $Gray
-        $msPath = "C:\Program Files\Meilisearch\meilisearch.exe"
+        $msPath = Get-MeilisearchPath
         if (Test-Path $msPath) {
             Write-Host "  Found: $msPath" -ForegroundColor $Green
         } else {
@@ -1171,7 +1285,7 @@ function Invoke-Diagnose {
             }
         } catch {}
 
-        $pgPath = "C:\Program Files\PostgreSQL\16"
+        $pgPath = Get-PGPath
         $dataPath = if ($suggestionDataPath) { $suggestionDataPath } else { Join-Path $pgPath "data" }
 
         if (-not (Test-Path $dataPath)) {
@@ -1219,6 +1333,7 @@ Commands:
   backup              Database backup
   diagnose            Run diagnostics (detailed troubleshooting)
   init-db             Initialize database (create DB, schema, seed data)
+  db-update <file>    Execute a SQL update script against the database
   reset               Reset service (remove, keep data by default)
   help                Show this help
 
@@ -1278,6 +1393,7 @@ switch ($cmd.ToLower()) {
     "backup"  { Invoke-Backup }
     "diagnose" { Invoke-Diagnose -Target $target }
     "init-db" { Initialize-Database }
+    "db-update" { Invoke-DbUpdate -SqlFile $target }
     "help"    { Show-Help }
 
     "start" {

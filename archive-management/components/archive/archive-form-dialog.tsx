@@ -64,6 +64,7 @@ export function ArchiveFormDialog({
   const [date, setDate] = useState(archive?.date || "");
   const [pageNo, setPageNo] = useState(archive?.pageNo || "");
   const [remark, setRemark] = useState(archive?.remark || "");
+  const [classificationLevel, setClassificationLevel] = useState(archive?.classificationLevel || "");
   const [fileUrl, setFileUrl] = useState(archive?.fileUrl || "");
 
   // UI state
@@ -90,6 +91,7 @@ export function ArchiveFormDialog({
         setDate(archive.date);
         setPageNo(archive.pageNo);
         setRemark(archive.remark || "");
+        setClassificationLevel(archive.classificationLevel || "");
         setFileUrl(archive.fileUrl || "");
       } else {
         // Creating mode - reset form
@@ -108,6 +110,7 @@ export function ArchiveFormDialog({
         setDate("");
         setPageNo("");
         setRemark("");
+        setClassificationLevel("");
         setFileUrl("");
       }
       setError("");
@@ -193,6 +196,7 @@ export function ArchiveFormDialog({
           date,
           pageNo,
           remark: remark || undefined,
+          classificationLevel: classificationLevel || undefined,
           fileUrl: fileUrl || undefined,
         };
 
@@ -222,6 +226,7 @@ export function ArchiveFormDialog({
           date,
           pageNo,
           remark: remark || undefined,
+          classificationLevel: classificationLevel || undefined,
           fileUrl: fileUrl || undefined,
         };
 
@@ -495,6 +500,17 @@ export function ArchiveFormDialog({
                 onChange={(e) => setRemark(e.target.value)}
                 placeholder="备注信息（可选）"
                 rows={3}
+              />
+            </div>
+
+            {/* Row 8: Classification Level */}
+            <div className="space-y-2">
+              <Label htmlFor="classificationLevel">密级</Label>
+              <Input
+                id="classificationLevel"
+                value={classificationLevel}
+                onChange={(e) => setClassificationLevel(e.target.value)}
+                placeholder="例如: 公开、内部、秘密、机密"
               />
             </div>
 

@@ -45,6 +45,7 @@ export function ArchiveTable({
     { id: "fondsNo", header: "全宗号", defaultWidth: 80, minWidth: 60 },
     { id: "year", header: "年度", defaultWidth: 70, minWidth: 60 },
     { id: "retentionPeriod", header: "保管期限", defaultWidth: 80, minWidth: 70 },
+    { id: "classificationLevel", header: "密级", defaultWidth: 70, minWidth: 50 },
     { id: "title", header: "题名", defaultWidth: 200, minWidth: 150 },
     { id: "deptIssue", header: "机构问题", defaultWidth: 120, minWidth: 80 },
     { id: "responsible", header: "责任者", defaultWidth: 80, minWidth: 60 },
@@ -223,6 +224,7 @@ export function ArchiveTable({
               <TableHead data-resizable-column="fondsNo">全宗号</TableHead>
               <TableHead data-resizable-column="year">年度</TableHead>
               <TableHead data-resizable-column="retentionPeriod">保管期限</TableHead>
+              <TableHead data-resizable-column="classificationLevel">密级</TableHead>
               <TableHead data-resizable-column="title">题名</TableHead>
               <TableHead data-resizable-column="deptIssue">机构问题</TableHead>
               <TableHead data-resizable-column="responsible">责任者</TableHead>
@@ -276,6 +278,11 @@ export function ArchiveTable({
                     <Badge variant={getRetentionBadgeVariant(archive.retentionPeriod)}>
                       {archive.retentionPeriod}
                     </Badge>
+                  </TableCell>
+                  <TableCell data-column="classificationLevel">
+                    <span className="text-sm text-gray-600">
+                      {archive.classificationLevel || "-"}
+                    </span>
                   </TableCell>
                   <TableCell data-column="title">
                     <div className="max-w-xs">
