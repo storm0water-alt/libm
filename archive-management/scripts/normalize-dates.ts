@@ -14,13 +14,17 @@ const prisma = new PrismaClient();
  * Supports formats:
  * - YYYY-MM-DD (2024-12-31)
  * - YYYYMMDD (20210127)
- * - YYYY (2011)
+ * - YYYY (2011, auto-fill month=1, day=1)
  * - YYYY年MM月DD日 (2021年01月27日)
  * - YYYY年MM月DD (2021年01月27)
  * - YYYY年M月D日 (2021年1月27日)
  * - YYYY年M月D (2021年1月27)
+ * - YYYY年M月 (2021年3月, auto-fill day=1)
  * - YYYY/MM/DD (2021/01/27)
  * - YYYY.MM.DD (2021.01.27)
+ * - YYYY-MM (2021-01, auto-fill day=1)
+ * - YYYY.MM (2021.01, auto-fill day=1)
+ * - YYYY/MM (2021/01, auto-fill day=1)
  *
  * @param dateStr - Date string in various formats
  * @returns Normalized date string in YYYY-MM-DD format, or original string if parsing fails
@@ -71,12 +75,34 @@ function parseAndNormalizeDate(dateStr: string | null): string {
     }
   }
 
-  // Pattern 4: YYYY only
+  // Pattern 4: YYYY年MM月 (year-month in Chinese, auto-fill day=1)
   if (!year) {
-    const pattern4 = /^(\d{4})$/;
+    const pattern4 = /^(\d{4})年(\d{1,2})月$/;
     const match4 = trimmed.match(pattern4);
     if (match4) {
       year = parseInt(match4[1], 10);
+      month = parseInt(match4[2], 10);
+      day = 1;
+    }
+  }
+
+  // Pattern 5: YYYY-MM or YYYY/MM or YYYY.MM (year-month, auto-fill day=1)
+  if (!year) {
+    const pattern5 = /^(\d{4})[-/.](\d{1,2})$/;
+    const match5 = trimmed.match(pattern5);
+    if (match5) {
+      year = parseInt(match5[1], 10);
+      month = parseInt(match5[2], 10);
+      day = 1;
+    }
+  }
+
+  // Pattern 6: YYYY only (auto-fill month=1, day=1)
+  if (!year) {
+    const pattern6 = /^(\d{4})$/;
+    const match6 = trimmed.match(pattern6);
+    if (match6) {
+      year = parseInt(match6[1], 10);
       month = 1;
       day = 1;
     }
