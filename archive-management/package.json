@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:start": "bash scripts/dev-start.sh",
+    "dev:stop": "bash scripts/dev-start.sh --stop",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
