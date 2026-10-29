@@ -259,3 +259,31 @@ make db-backup
 # 备份 PDF 文件
 cp -r ./data/pdfs ./backups/pdfs_$(date +%Y%m%d)
 ```
+
+## 健康检查相关变量（可选）
+
+`/api/health` 会检查 PostgreSQL 与 Meilisearch，可用以下变量调整行为（写入 `.env` 或容器环境变量）：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `HEALTH_CHECK_TIMEOUT_MS` | `5000` | 单个依赖检查的超时时间（毫秒） |
+| `HEALTH_REQUIRE_MEILISEARCH` | `true` | 设为 `false` 时，Meilisearch 异常只在 `services.meilisearch` 中体现，不影响整体状态码（适用于搜索可退化的部署） |
+
+响应示例（全部正常）：
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "services": {
+    "database": { "healthy": true, "message": "Connected", "latencyMs": 3 },
+    "meilisearch": {
+      "healthy": true,
+      "message": "Connected",
+      "url": "http://localhost:7700",
+      "index": "archives",
+      "latencyMs": 4
+    }
+  }
+}
+```
