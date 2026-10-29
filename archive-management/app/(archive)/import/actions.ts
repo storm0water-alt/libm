@@ -320,38 +320,6 @@ export async function queryImportHistoryAction({
 }
 
 /**
- * Get import processing statistics
- * @param operator - Username of operator (optional)
- * @returns Processing statistics
- */
-export async function getProcessingStatsAction(operator?: string) {
-  const session = await auth();
-
-  if (!session) {
-    return {
-      success: false,
-      error: "Unauthorized",
-    };
-  }
-
-  try {
-    const stats = await importService.getProcessingStats(
-      session.user.role === "admin" ? operator : session.user.username
-    );
-
-    return {
-      success: true,
-      data: stats,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Failed to get processing stats",
-    };
-  }
-}
-
-/**
  * Set import concurrency (admin only)
  * @param concurrency - Number of concurrent files to process (1-10)
  * @returns Success status

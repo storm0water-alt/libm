@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { indexArchive, deleteArchive as deleteFromIndex, batchIndexArchives } from "@/services/meilisearch.service";
+import type { Prisma } from "@prisma/client";
+import {
+  indexArchive,
+  deleteArchive as deleteFromIndex,
+  batchIndexArchives,
+  type ArchiveDocumentSource,
+} from "@/services/meilisearch.service";
 import { createLog } from "@/services/log.service";
 import { getCurrentOperator, getCurrentUserId } from "@/lib/prisma-middleware";
 
@@ -38,6 +44,8 @@ export interface ArchiveQueryParams {
   retentionPeriod?: string;
   /** Optional responsible person filter (keyword search) */
   responsible?: string;
+  /** Optional 机构问题 filter (keyword search) */
+  deptIssue?: string;
   /** Optional classification level filter (keyword search) */
   classificationLevel?: string;
   /** Date range filter */
@@ -167,7 +175,7 @@ export async function queryArchives(
   } = params;
 
   // Build where clause - all filters use AND logic
-  const where: any = {};
+  const where: Prisma.ArchiveWhereInput = {};
 
   // Search only in title (keyword search)
   if (search) {
@@ -202,6 +210,11 @@ export async function queryArchives(
   // Responsible person keyword search
   if (responsible) {
     where.responsible = { contains: responsible, mode: "insensitive" };
+  }
+
+  // 机构问题 keyword search
+  if (params.deptIssue) {
+    where.deptIssue = { contains: params.deptIssue, mode: "insensitive" };
   }
 
   // Classification level exact match filter
@@ -304,6 +317,9 @@ export async function createArchive(
   data: CreateArchiveInput,
   userId?: string
 ): Promise<ArchiveItem> {
+  // 操作日志由 Prisma 中间件记录，此处仅保留参数以兼容现有调用方
+  void userId;
+
   // Check if archive number already exists
   const existing = await prisma.archive.findUnique({
     where: { archiveNo: data.archiveNo },
@@ -319,23 +335,7 @@ export async function createArchive(
   });
 
   // Index in Meilisearch (non-blocking, fire and forget)
-  indexArchive({
-    id: archive.archiveID,
-    title: archive.title,
-    description: `${archive.deptIssue} - ${archive.responsible}`,
-    category: archive.retentionPeriod,
-    tags: [archive.fondsNo, archive.year, archive.deptIssue],
-    // Additional metadata for search
-    metadata: {
-      archiveNo: archive.archiveNo,
-      fondsNo: archive.fondsNo,
-      year: archive.year,
-      deptIssue: archive.deptIssue,
-      responsible: archive.responsible,
-      docNo: archive.docNo,
-      date: archive.date,
-    },
-  }).catch((error) => {
+  indexArchive(archive).catch((error) => {
     console.error("[Archive Service] Failed to index archive:", error);
   });
 
@@ -363,6 +363,9 @@ export async function updateArchive(
   data: UpdateArchiveInput,
   userId?: string
 ): Promise<ArchiveItem> {
+  // 操作日志由 Prisma 中间件记录，此处仅保留参数以兼容现有调用方
+  void userId;
+
   // Check if new archive number conflicts with existing
   if (data.archiveNo) {
     const existing = await prisma.archive.findFirst({
@@ -384,22 +387,7 @@ export async function updateArchive(
   });
 
   // Update index in Meilisearch (non-blocking, fire and forget)
-  indexArchive({
-    id: archive.archiveID,
-    title: archive.title,
-    description: `${archive.deptIssue} - ${archive.responsible}`,
-    category: archive.retentionPeriod,
-    tags: [archive.fondsNo, archive.year, archive.deptIssue],
-    metadata: {
-      archiveNo: archive.archiveNo,
-      fondsNo: archive.fondsNo,
-      year: archive.year,
-      deptIssue: archive.deptIssue,
-      responsible: archive.responsible,
-      docNo: archive.docNo,
-      date: archive.date,
-    },
-  }).catch((error) => {
+  indexArchive(archive).catch((error) => {
     console.error("[Archive Service] Failed to update index:", error);
   });
 
@@ -522,7 +510,7 @@ export async function importArchives(
     },
   });
 
-  const createdArchives: any[] = [];
+  const createdArchives: ArchiveDocumentSource[] = [];
 
   for (let i = 0; i < archives.length; i++) {
     try {
@@ -549,24 +537,7 @@ export async function importArchives(
 
   // Batch index all successfully created archives (non-blocking)
   if (createdArchives.length > 0) {
-    batchIndexArchives(
-      createdArchives.map((a) => ({
-        id: a.archiveID,
-        title: a.title,
-        description: `${a.deptIssue} - ${a.responsible}`,
-        category: a.retentionPeriod,
-        tags: [a.fondsNo, a.year, a.deptIssue],
-        metadata: {
-          archiveNo: a.archiveNo,
-          fondsNo: a.fondsNo,
-          year: a.year,
-          deptIssue: a.deptIssue,
-          responsible: a.responsible,
-          docNo: a.docNo,
-          date: a.date,
-        },
-      }))
-    ).catch((error) => {
+    batchIndexArchives(createdArchives).catch((error) => {
       console.error("[Archive Service] Failed to batch index archives:", error);
     });
   }
@@ -586,7 +557,20 @@ export async function importArchives(
  * await logArchiveView('clx1234567890', 'john.doe', userId);
  * ```
  */
-export async function logArchiveView(archiveId: string, operator?: string, userId?: string): Promise<void> {
+/**
+ * Log archive view operation
+ *
+ * @param archiveId - Archive ID
+ * @param operator - Operator name (username)
+ * @param userId - User ID
+ * @param clientIp - Client IP address
+ */
+export async function logArchiveView(
+  archiveId: string,
+  operator?: string,
+  userId?: string,
+  clientIp?: string
+): Promise<void> {
   const archive = await prisma.archive.findUnique({
     where: { archiveID: archiveId },
   });
@@ -598,6 +582,7 @@ export async function logArchiveView(archiveId: string, operator?: string, userI
       operator: operator || "system",
       operation: "view",
       target: `查看档案: ${archive.title} (${archive.archiveNo})`,
+      ip: clientIp ?? "",
       userId,
       archiveId,
     },
@@ -616,7 +601,12 @@ export async function logArchiveView(archiveId: string, operator?: string, userI
  * await logArchiveDownload('clx1234567890', 'john.doe', userId);
  * ```
  */
-export async function logArchiveDownload(archiveId: string, operator?: string, userId?: string): Promise<void> {
+export async function logArchiveDownload(
+  archiveId: string,
+  operator?: string,
+  userId?: string,
+  clientIp?: string
+): Promise<void> {
   const archive = await prisma.archive.findUnique({
     where: { archiveID: archiveId },
   });
@@ -628,6 +618,7 @@ export async function logArchiveDownload(archiveId: string, operator?: string, u
       operator: operator || "system",
       operation: "download",
       target: `下载档案: ${archive.title} (${archive.archiveNo})`,
+      ip: clientIp ?? "",
       userId,
       archiveId,
     },

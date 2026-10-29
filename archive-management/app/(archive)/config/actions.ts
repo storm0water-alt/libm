@@ -10,6 +10,7 @@ import {
   importConfigs,
   getHistory,
   getGroups,
+  type ConfigListResponse,
 } from "@/services/config.service";
 import {
   validateConfigValue,
@@ -50,7 +51,7 @@ export async function queryConfigsAction(params: {
   pageSize: number;
   group?: string;
   search?: string;
-}): Promise<ActionResult> {
+}): Promise<ActionResult<ConfigListResponse>> {
   try {
     // Check authentication
     const session = await auth();
@@ -147,7 +148,7 @@ export async function createConfigAction(data: {
     if (!configKeyResult.success) {
       return {
         success: false,
-        error: configKeyResult.error.errors[0].message,
+        error: configKeyResult.error.issues[0].message,
       };
     }
 
@@ -476,9 +477,14 @@ export async function importConfigsAction(configs: Array<{
       };
     }
 
-    // Import configs
+    // Import configs（description 缺失时归一化为 null，与服务层类型对齐）
+    const normalizedConfigs = configs.map((config) => ({
+      ...config,
+      description: config.description ?? null,
+    }));
+
     const result = await importConfigs(
-      configs,
+      normalizedConfigs,
       session.user.username || "unknown"
     );
 
@@ -561,7 +567,7 @@ export async function getConfigHistoryAction(configKey: string): Promise<ActionR
  * console.log(result.data); // ['log', 'license', 'system']
  * ```
  */
-export async function getConfigGroupsAction(): Promise<ActionResult> {
+export async function getConfigGroupsAction(): Promise<ActionResult<string[]>> {
   try {
     // Check authentication
     const session = await auth();

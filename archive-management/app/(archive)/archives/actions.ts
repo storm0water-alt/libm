@@ -137,7 +137,7 @@ export async function getArchiveByIdAction(id: string): Promise<ActionResult> {
     // Log view
     const headersList = await headers();
     const clientIp = getClientIp({ headers: new Headers(headersList) } as Request);
-    await logArchiveView(id, session.user.username || session.user.name || 'user', session.user.id, clientIp);
+    await logArchiveView(id, session.user.username || 'user', session.user.id, clientIp);
 
     return {
       success: true,
@@ -220,7 +220,7 @@ export async function createArchiveAction(data: CreateArchiveInput): Promise<Act
     if (!archiveNoResult.success) {
       return {
         success: false,
-        error: archiveNoResult.error.errors[0].message,
+        error: archiveNoResult.error.issues[0].message,
       };
     }
 
@@ -235,7 +235,7 @@ export async function createArchiveAction(data: CreateArchiveInput): Promise<Act
     // Set log context for automatic logging via Prisma middleware
     const headersList = await headers();
     const clientIp = getClientIp({ headers: new Headers(headersList) } as Request);
-    setLogContext(session.user.username || session.user.name || 'user', session.user.id, undefined, clientIp);
+    setLogContext(session.user.username || 'user', session.user.id, undefined, clientIp);
 
     try {
       // Create archive
@@ -322,7 +322,7 @@ export async function updateArchiveAction(
       if (!archiveNoResult.success) {
         return {
           success: false,
-          error: archiveNoResult.error.errors[0].message,
+          error: archiveNoResult.error.issues[0].message,
         };
       }
     }
@@ -338,7 +338,7 @@ export async function updateArchiveAction(
     // Set log context for automatic logging via Prisma middleware
     const headersList = await headers();
     const clientIp = getClientIp({ headers: new Headers(headersList) } as Request);
-    setLogContext(session.user.username || session.user.name || 'user', session.user.id, undefined, clientIp);
+    setLogContext(session.user.username || 'user', session.user.id, undefined, clientIp);
 
     try {
       // Update archive
@@ -405,7 +405,7 @@ export async function deleteArchiveAction(id: string): Promise<ActionResult> {
     // Set log context for automatic logging via Prisma middleware
     const headersList = await headers();
     const clientIp = getClientIp({ headers: new Headers(headersList) } as Request);
-    setLogContext(session.user.username || session.user.name || 'user', session.user.id, undefined, clientIp);
+    setLogContext(session.user.username || 'user', session.user.id, undefined, clientIp);
 
     try {
       // Delete archive
@@ -479,7 +479,7 @@ export async function batchDeleteArchivesAction(ids: string[]): Promise<ActionRe
     // Set log context for automatic logging via Prisma middleware
     const headersList = await headers();
     const clientIp = getClientIp({ headers: new Headers(headersList) } as Request);
-    setLogContext(session.user.username || session.user.name || 'user', session.user.id, undefined, clientIp);
+    setLogContext(session.user.username || 'user', session.user.id, undefined, clientIp);
 
     try {
       // Batch delete
@@ -627,7 +627,7 @@ export async function logArchiveDownloadAction(archiveId: string): Promise<Actio
     // Log download
     const headersList = await headers();
     const clientIp = getClientIp({ headers: new Headers(headersList) } as Request);
-    await logArchiveDownload(archiveId, session.user.username || session.user.name || 'user', session.user.id, clientIp);
+    await logArchiveDownload(archiveId, session.user.username || 'user', session.user.id, clientIp);
 
     return {
       success: true,

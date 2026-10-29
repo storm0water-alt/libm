@@ -1,284 +1,157 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+// @vitest-environment node
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { GET } from "../route";
 
-// Mock Meilisearch service
-vi.mock("@/services/meilisearch.service", () => ({
-  searchArchives: vi.fn(),
-}));
+// 认证与搜索服务都 mock 掉，只测路由本身的行为
+vi.mock("@/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/services/meilisearch.service", () => ({ searchArchives: vi.fn() }));
 
-// Mock auth
-vi.mock("@/auth", () => ({
-  auth: vi.fn(),
-}));
-
-import { searchArchives } from "@/services/meilisearch.service";
 import { auth } from "@/auth";
+import { searchArchives } from "@/services/meilisearch.service";
 
-describe("Search API Route", () => {
+const mockAuth = auth as unknown as ReturnType<typeof vi.fn>;
+const mockSearch = searchArchives as unknown as ReturnType<typeof vi.fn>;
+
+function login(userId = "user-1") {
+  mockAuth.mockResolvedValue({ user: { id: userId, username: "tester", role: "admin" } });
+}
+
+function searchResult(overrides: Record<string, unknown> = {}) {
+  return {
+    results: [],
+    pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    query: "测试",
+    processingTimeMs: 1,
+    ...overrides,
+  };
+}
+
+async function callRoute(url: string) {
+  const response = await GET(new Request(`http://localhost:3000${url}`));
+  return { status: response.status, body: await response.json() };
+}
+
+describe("GET /api/search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal("Request", class Request {});
+    login();
+    mockSearch.mockResolvedValue(searchResult());
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
-
-  describe("GET /api/search", () => {
-    it("should return search results for valid query", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
-
-      (searchArchives as any).mockResolvedValue({
-        success: true,
-        results: [
-          {
-            id: "1",
-            title: "Test Archive",
-            archiveNo: "2024-TEST-001",
-            deptIssue: "Test Dept",
-            responsible: "Test User",
-            docNo: "TEST-001",
-            remark: "Test remark",
-            category: "Test",
-            tags: ["tag1"],
-            createdAt: new Date(),
-          },
-        ],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 1,
-          totalPages: 1,
-        },
+  it("返回搜索结果与分页信息", async () => {
+    mockSearch.mockResolvedValue(
+      searchResult({
+        results: [{ archiveID: "a1", title: "测试档案" }],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
         processingTimeMs: 5,
-      });
+      })
+    );
 
-      const request = new Request("http://localhost:3000/api/search?q=test");
-      const response = await GET(request);
-      const data = await response.json();
+    const { status, body } = await callRoute("/api/search?q=测试");
 
-      expect(response.status).toBe(200);
-      expect(data.results).toHaveLength(1);
-      expect(data.results[0].title).toBe("Test Archive");
-      expect(data.pagination.total).toBe(1);
-      expect(data.processingTimeMs).toBe(5);
+    expect(status).toBe(200);
+    expect(body.results).toHaveLength(1);
+    expect(body.pagination.total).toBe(1);
+    expect(body.processingTimeMs).toBe(5);
+    expect(mockSearch).toHaveBeenCalledWith("测试", {
+      limit: 20,
+      offset: 0,
+      filters: {
+        fondsNo: undefined,
+        retentionPeriod: undefined,
+        year: undefined,
+        deptCode: undefined,
+      },
     });
+  });
 
-    it("should validate query parameter", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
+  it("未登录返回 401", async () => {
+    mockAuth.mockResolvedValue(null);
 
-      const request = new Request("http://localhost:3000/api/search");
-      const response = await GET(request);
-      const data = await response.json();
+    const { status, body } = await callRoute("/api/search?q=测试");
 
-      expect(response.status).toBe(400);
-      expect(data.error).toBeDefined();
+    expect(status).toBe(401);
+    expect(body.error).toBe("未授权");
+    expect(mockSearch).not.toHaveBeenCalled();
+  });
+
+  it("缺少 q 返回 400", async () => {
+    const { status, body } = await callRoute("/api/search");
+
+    expect(status).toBe(400);
+    expect(body.error).toBe("请求参数无效");
+    expect(body.details.length).toBeGreaterThan(0);
+    expect(mockSearch).not.toHaveBeenCalled();
+  });
+
+  it("limit 超出上限返回 400", async () => {
+    const { status, body } = await callRoute("/api/search?q=测试&limit=101");
+
+    expect(status).toBe(400);
+    expect(body.details.some((d: { path: (string | number)[] }) => d.path.includes("limit"))).toBe(true);
+  });
+
+  it("page 小于 1 返回 400", async () => {
+    const { status, body } = await callRoute("/api/search?q=测试&page=0");
+
+    expect(status).toBe(400);
+    expect(body.details.some((d: { path: (string | number)[] }) => d.path.includes("page"))).toBe(true);
+  });
+
+  it("把结构化筛选参数透传给搜索服务", async () => {
+    const { status } = await callRoute(
+      "/api/search?q=测试&fondsNo=A01&year=2024&retentionPeriod=永久&deptCode=D01"
+    );
+
+    expect(status).toBe(200);
+    expect(mockSearch).toHaveBeenCalledWith("测试", {
+      limit: 20,
+      offset: 0,
+      filters: {
+        fondsNo: "A01",
+        year: "2024",
+        retentionPeriod: "永久",
+        deptCode: "D01",
+      },
     });
+  });
 
-    it("should validate limit parameter", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
+  it("按 page/limit 计算 offset", async () => {
+    await callRoute("/api/search?q=测试&page=3&limit=25");
 
-      const request = new Request(
-        "http://localhost:3000/api/search?q=test&limit=101"
-      );
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data.error).toContain("limit");
+    expect(mockSearch).toHaveBeenCalledWith("测试", {
+      limit: 25,
+      offset: 50,
+      filters: expect.any(Object),
     });
+  });
 
-    it("should validate page parameter", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
+  it("搜索服务异常返回 500", async () => {
+    mockSearch.mockRejectedValue(new Error("meilisearch down"));
 
-      const request = new Request("http://localhost:3000/api/search?q=test&page=0");
-      const response = await GET(request);
-      const data = await response.json();
+    const { status, body } = await callRoute("/api/search?q=测试");
 
-      expect(response.status).toBe(400);
-      expect(data.error).toContain("page");
-    });
+    expect(status).toBe(500);
+    expect(body.error).toBe("搜索失败，请稍后重试");
+  });
 
-    it("should apply category filter", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
+  it("查询串中的特殊字符被正确解码后交给服务", async () => {
+    await callRoute("/api/search?q=test%20%26%20special");
 
-      (searchArchives as any).mockResolvedValue({
-        success: true,
-        results: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0,
-        },
-        processingTimeMs: 2,
-      });
+    expect(mockSearch).toHaveBeenCalledWith("test & special", expect.any(Object));
+  });
 
-      const request = new Request(
-        "http://localhost:3000/api/search?q=test&category=Finance"
-      );
-      const response = await GET(request);
+  it("同一用户超过每分钟 100 次返回 429", async () => {
+    login("rate-limit-user");
 
-      expect(response.status).toBe(200);
-      expect(searchArchives).toHaveBeenCalledWith("test", {
-        limit: 20,
-        offset: 0,
-        category: "Finance",
-      });
-    });
+    for (let i = 0; i < 100; i++) {
+      const { status } = await callRoute("/api/search?q=测试");
+      expect(status).toBe(200);
+    }
 
-    it("should apply tag filters", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
+    const { status, body } = await callRoute("/api/search?q=测试");
 
-      (searchArchives as any).mockResolvedValue({
-        success: true,
-        results: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0,
-        },
-        processingTimeMs: 2,
-      });
-
-      const request = new Request(
-        "http://localhost:3000/api/search?q=test&tags=urgent,important"
-      );
-      const response = await GET(request);
-
-      expect(response.status).toBe(200);
-      expect(searchArchives).toHaveBeenCalledWith("test", {
-        limit: 20,
-        offset: 0,
-        tags: ["urgent", "important"],
-      });
-    });
-
-    it("should handle pagination correctly", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
-
-      (searchArchives as any).mockResolvedValue({
-        success: true,
-        results: [],
-        pagination: {
-          page: 2,
-          limit: 20,
-          total: 50,
-          totalPages: 3,
-        },
-        processingTimeMs: 3,
-      });
-
-      const request = new Request(
-        "http://localhost:3000/api/search?q=test&page=2&limit=20"
-      );
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.pagination.page).toBe(2);
-      expect(searchArchives).toHaveBeenCalledWith("test", {
-        limit: 20,
-        offset: 20,
-      });
-    });
-
-    it("should return 401 for unauthenticated requests", async () => {
-      (auth as any).mockResolvedValue(null);
-
-      const request = new Request("http://localhost:3000/api/search?q=test");
-      const response = await GET(request);
-
-      expect(response.status).toBe(401);
-    });
-
-    it("should handle Meilisearch errors gracefully", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
-
-      (searchArchives as any).mockResolvedValue({
-        success: false,
-        error: "Meilisearch connection failed",
-      });
-
-      const request = new Request("http://localhost:3000/api/search?q=test");
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(500);
-      expect(data.error).toBeDefined();
-    });
-
-    it("should handle empty results", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
-
-      (searchArchives as any).mockResolvedValue({
-        success: true,
-        results: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0,
-        },
-        processingTimeMs: 1,
-      });
-
-      const request = new Request("http://localhost:3000/api/search?q=nonexistent");
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.results).toEqual([]);
-      expect(data.pagination.total).toBe(0);
-    });
-
-    it("should escape special characters in query", async () => {
-      (auth as any).mockResolvedValue({
-        user: { id: "1", username: "test" },
-      });
-
-      (searchArchives as any).mockResolvedValue({
-        success: true,
-        results: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0,
-        },
-        processingTimeMs: 1,
-      });
-
-      const request = new Request(
-        "http://localhost:3000/api/search?q=test%20%26%20special"
-      );
-      const response = await GET(request);
-
-      expect(response.status).toBe(200);
-      expect(searchArchives).toHaveBeenCalledWith("test & special", {
-        limit: 20,
-        offset: 0,
-      });
-    });
+    expect(status).toBe(429);
+    expect(body.error).toContain("过于频繁");
   });
 });

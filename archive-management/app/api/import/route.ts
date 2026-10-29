@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { prisma } from '@/lib/prisma';
 import { importArchives } from '@/services/archive.service';
 import { setLogContext, clearLogContext } from '@/lib/prisma-middleware';
-import { getClientIp } from '@/services/log.service';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +27,7 @@ export async function POST(request: Request) {
 
     // Validate each archive
     const invalidArchives = archives.filter(
-      (a: any) => !a.title || !a.fileUrl || !a.fileName || !a.fileSize
+      (a: Record<string, unknown>) => !a.title || !a.fileUrl || !a.fileName || !a.fileSize
     );
 
     if (invalidArchives.length > 0) {
@@ -39,19 +37,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get client IP
-    const clientIp = getClientIp(request);
-
-    // Set log context for automatic logging
-    setLogContext(session.user.username || session.user.name || 'user', session.user.id, request);
+    // Set log context for automatic logging（IP 通过 request 传入）
+    setLogContext(session.user.username || 'user', session.user.id, request);
 
     try {
       // Import archives using service
-      const results = await importArchives(
-        archives,
-        session.user.id,
-        clientIp
-      );
+      const results = await importArchives(archives, session.user.id);
 
       return NextResponse.json({
         results,

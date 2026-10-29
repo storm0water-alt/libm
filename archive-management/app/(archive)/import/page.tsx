@@ -175,7 +175,7 @@ export default function ImportPage() {
 
       if (result.success) {
         toast.success(result.message || 'CSV 导入已开始');
-        setCsvImportRecordId(result.importRecordId);
+        setCsvImportRecordId(result.importRecordId ?? null);
         setActiveTab("progress");
       } else {
         toast.error(result.error || 'CSV 导入失败');

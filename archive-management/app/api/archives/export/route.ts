@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     // Set log context
     const clientIp = getClientIp({ headers: request.headers } as Request);
     setLogContext(
-      session.user.username || session.user.name || "user",
+      session.user.username || "user",
       session.user.id,
       undefined,
       clientIp
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       for (const archive of archivesToExport) {
         await logArchiveDownload(
           archive.archiveID,
-          session.user.username || session.user.name || "user",
+          session.user.username || "user",
           session.user.id,
           clientIp
         );

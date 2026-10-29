@@ -27,8 +27,8 @@ export default async function ConfigPage({ searchParams }: ConfigPageProps) {
     getConfigGroupsAction(),
   ]);
 
-  const configs = configsResult.success ? configsResult.data : null;
-  const groups = groupsResult.success ? groupsResult.data : [];
+  const configs = configsResult.success ? (configsResult.data ?? null) : null;
+  const groups = groupsResult.success ? (groupsResult.data ?? []) : [];
 
   return (
     <div className="space-y-6">

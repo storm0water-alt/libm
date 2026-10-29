@@ -1,14 +1,26 @@
 import { prisma } from "@/lib/prisma";
 import { getIndex, checkHealth } from "@/lib/meilisearch";
-import type { Archive } from "@prisma/client";
+import type { Archive, Prisma } from "@prisma/client";
 
 /**
  * TypeScript interfaces for Meilisearch operations
  */
 
+export interface SearchFilters {
+  fondsNo?: string;
+  /** 保管期限 */
+  retentionPeriod?: string;
+  /** 年度 */
+  year?: string;
+  /** 机构问题代码 */
+  deptCode?: string;
+}
+
 export interface SearchOptions {
   limit?: number;
   offset?: number;
+  /** 结构化筛选条件（字段需在 Meilisearch 的 filterableAttributes 中） */
+  filters?: SearchFilters;
 }
 
 export interface ArchiveSearchDocument {
@@ -22,10 +34,11 @@ export interface ArchiveSearchDocument {
   fondsNo: string;
   retentionPeriod: string;
   year: string;
+  deptCode: string;
   createdAt: string;
 }
 
-export interface SearchResult<T = any> {
+export interface SearchResult<T = unknown> {
   hits: T[];
   estimatedTotalHits: number;
   limit: number;
@@ -46,9 +59,59 @@ export interface SearchResponse {
 }
 
 /**
+ * 把筛选条件转成 Meilisearch 的 filter 表达式
+ * 例：{ year: "2024", fondsNo: "A01" } -> ['year = "2024"', 'fondsNo = "A01"']
+ */
+function buildMeilisearchFilter(filters?: SearchFilters): string[] | undefined {
+  if (!filters) return undefined;
+
+  const conditions = Object.entries(filters)
+    .filter(([, value]) => typeof value === "string" && value.length > 0)
+    .map(([field, value]) => `${field} = ${JSON.stringify(value)}`);
+
+  return conditions.length > 0 ? conditions : undefined;
+}
+
+/**
+ * 把筛选条件转成 Prisma 的 where 片段（Meilisearch 不可用时的降级路径）
+ */
+function buildPrismaFilter(filters?: SearchFilters): Prisma.ArchiveWhereInput {
+  const where: Prisma.ArchiveWhereInput = {};
+  if (!filters) return where;
+
+  for (const field of ["fondsNo", "retentionPeriod", "year", "deptCode"] as const) {
+    const value = filters[field];
+    if (typeof value === "string" && value.length > 0) {
+      where[field] = value;
+    }
+  }
+
+  return where;
+}
+
+/**
+ * 建立索引所需的 Archive 字段子集（Archive 与 ArchiveItem 均满足）
+ */
+export type ArchiveDocumentSource = Pick<
+  Archive,
+  | "archiveID"
+  | "archiveNo"
+  | "title"
+  | "deptIssue"
+  | "responsible"
+  | "docNo"
+  | "remark"
+  | "fondsNo"
+  | "retentionPeriod"
+  | "year"
+  | "deptCode"
+  | "createdAt"
+>;
+
+/**
  * Convert Archive model to ArchiveSearchDocument
  */
-function archiveToDocument(archive: Archive): ArchiveSearchDocument {
+function archiveToDocument(archive: ArchiveDocumentSource): ArchiveSearchDocument {
   return {
     id: archive.archiveID,
     archiveNo: archive.archiveNo || "",
@@ -60,6 +123,7 @@ function archiveToDocument(archive: Archive): ArchiveSearchDocument {
     fondsNo: archive.fondsNo,
     retentionPeriod: archive.retentionPeriod,
     year: archive.year,
+    deptCode: archive.deptCode,
     createdAt: archive.createdAt.toISOString(),
   };
 }
@@ -72,8 +136,6 @@ export async function searchArchives(
   query: string,
   options: SearchOptions = {}
 ): Promise<SearchResponse> {
-  const startTime = Date.now();
-
   try {
     // Check if Meilisearch is healthy
     const health = await checkHealth();
@@ -87,10 +149,14 @@ export async function searchArchives(
     const offset = options.offset || 0;
 
     // Perform search
-    const searchParams: any = {
+    const searchParams: { limit: number; offset: number; filter?: string[] } = {
       limit,
       offset,
     };
+    const filter = buildMeilisearchFilter(options.filters);
+    if (filter) {
+      searchParams.filter = filter;
+    }
 
     const results = await index.search<ArchiveSearchDocument>(
       query,
@@ -140,7 +206,8 @@ async function searchWithPrisma(
   const offset = options.offset || 0;
 
   // Search in multiple fields
-  const where: any = {
+  const where: Prisma.ArchiveWhereInput = {
+    ...buildPrismaFilter(options.filters),
     OR: [
       { title: { contains: query, mode: "insensitive" } },
       { archiveNo: { contains: query, mode: "insensitive" } },
@@ -177,7 +244,7 @@ async function searchWithPrisma(
 /**
  * Add or update archive in Meilisearch index
  */
-export async function indexArchive(archive: Archive): Promise<{
+export async function indexArchive(archive: ArchiveDocumentSource): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -239,7 +306,7 @@ export async function deleteArchive(archiveId: string): Promise<{
 /**
  * Batch index multiple archives
  */
-export async function batchIndexArchives(archives: Archive[]): Promise<{
+export async function batchIndexArchives(archives: ArchiveDocumentSource[]): Promise<{
   success: boolean;
   indexed: number;
   failed: number;

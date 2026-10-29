@@ -152,10 +152,9 @@ export function ConfigTable({
                           {config.configKey}
                         </span>
                         {config.isSystem && (
-                          <Lock
-                            className="h-3 w-3 text-gray-400"
-                            title="系统保留配置"
-                          />
+                          <span title="系统保留配置">
+                            <Lock className="h-3 w-3 text-gray-400" />
+                          </span>
                         )}
                       </div>
                     </TableCell>

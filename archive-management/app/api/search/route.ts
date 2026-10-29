@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { searchArchives } from "@/services/meilisearch.service";
 
@@ -18,8 +17,11 @@ const searchQuerySchema = z.object({
   q: z.string().min(1, "搜索查询不能为空").max(500, "搜索查询过长"),
   page: z.number().int().min(1, "页码必须大于0").default(1),
   limit: z.number().int().min(1, "每页数量必须大于0").max(100, "每页最多100条").default(20),
-  category: z.string().optional(),
-  tags: z.string().optional(),
+  // 结构化筛选（对应 Meilisearch filterableAttributes）
+  fondsNo: z.string().max(100).optional(),
+  retentionPeriod: z.string().max(100).optional(),
+  year: z.string().max(20).optional(),
+  deptCode: z.string().max(100).optional(),
 });
 
 /**
@@ -93,8 +95,10 @@ export async function GET(request: Request) {
       q: searchParams.get("q") || "",
       page: parseInt(searchParams.get("page") || "1"),
       limit: parseInt(searchParams.get("limit") || "20"),
-      category: searchParams.get("category") || undefined,
-      tags: searchParams.get("tags") || undefined,
+      fondsNo: searchParams.get("fondsNo") || undefined,
+      retentionPeriod: searchParams.get("retentionPeriod") || undefined,
+      year: searchParams.get("year") || undefined,
+      deptCode: searchParams.get("deptCode") || undefined,
     };
 
     const validationResult = searchQuerySchema.safeParse(rawData);
@@ -111,16 +115,15 @@ export async function GET(request: Request) {
 
     const data = validationResult.data;
 
-    // Parse tags from comma-separated string
-    const tags = data.tags ? data.tags.split(",").filter(Boolean) : undefined;
-
     // Perform search using Meilisearch service
     const results = await searchArchives(data.q, {
       limit: data.limit,
       offset: (data.page - 1) * data.limit,
       filters: {
-        category: data.category,
-        tags,
+        fondsNo: data.fondsNo,
+        retentionPeriod: data.retentionPeriod,
+        year: data.year,
+        deptCode: data.deptCode,
       },
     });
 
